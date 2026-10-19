@@ -4,8 +4,8 @@ A free, open-source piano learning app for the laptop keyboard you already own. 
 
 ## Play
 
-1. Choose from **46 pieces**: 21 complete-length classical piano scores and 25 short beginner studies or traditional melodies. The library labels full pieces and short studies clearly.
-2. Pick **Free mode** to play to the end without stopping, or **Learning mode** to practice the opening of a full piece (the first 40 seconds of note onsets). Learning mode rewinds after a missed note and waits until you play it correctly.
+1. Choose from **21 complete-length classical piano scores in Free mode**. Learning mode offers those scores as opening excerpts plus 25 short beginner studies or traditional melodies. The library labels full pieces and short studies clearly.
+2. Pick **Free mode** to play a full score to the end without stopping, or **Learning mode** to practice the opening of a full piece (the first 40 seconds of note onsets) or a short study. Learning mode rewinds after a missed note and waits until you play it correctly.
 3. Press each key when its colored bar reaches the glowing line. A longer bar shows a longer hold. The black note field has no vertical guide grid, and a three-octave piano is shown below it.
 
 The laptop's `A S D F G H J K L` keys map left to right to white piano keys C4–D5. `W E T Y U O P` are the black keys between them. On the on-screen piano, those laptop keys are labeled; the other keys can be clicked or tapped. Up/Down or the octave buttons shift the song and laptop map together. Speed can be set from 50% to 125%.
@@ -16,13 +16,13 @@ The complete MIDI scores often contain simultaneous notes across several octaves
 
 ### Bring your own MIDI
 
-Use **Import MIDI** to play a `.mid` or `.midi` file you have permission to use. It is parsed in your browser and not sent to a server. Free mode keeps the complete imported piece length; Learning mode takes an opening excerpt. The imported file itself is not saved to the catalog, so import it again after reloading. This is how you can privately play modern copyrighted music you own without Beathoven publishing its note data.
+Use **Import MIDI** to play a `.mid` or `.midi` file you have permission to use. It is parsed in your browser and not sent to a server. Free mode keeps the complete imported piece length; Learning mode takes an opening excerpt. The file is saved in this browser's IndexedDB for later visits, and your practice checkpoint can be resumed. Clearing site data removes it. This is how you can privately play modern copyrighted music you own without Beathoven publishing its note data.
 
-Spotify offline downloads are audio for playback inside Spotify, not MIDI note files. Look for an authorized `.mid` or `.midi` download from a creator or publisher, or transcribe a personal practice copy in a notation program or digital audio workstation that exports MIDI. To publish a modern piece in Beathoven's public catalog, obtain a license that allows redistribution of its note data.
+Spotify offline downloads are audio for playback inside Spotify, not MIDI note files. Look for an authorized `.mid` or `.midi` download from a creator or publisher, or create your own MIDI in a notation program when you have the necessary rights or permission. To publish a modern piece in Beathoven's public catalog, obtain a license that allows redistribution of its note data.
 
 ## Profiles and progress
 
-The [profile page](https://regulusaa.github.io/beathoven/profile.html) lets you create a profile with a name and PIN, sign in, add a profile picture, and see rank, points, total plays, and each song's best accuracy. Progress saves automatically on this browser after each completed piece. An unfinished built-in piece is checkpointed during practice and can be resumed from the profile page. Existing guest progress from the earlier version moves into the first new profile.
+The [profile page](https://regulusaa.github.io/beathoven/profile.html) lets you create a profile with a name and PIN, sign in, add a profile picture, and see rank, points, total plays, and each song's best accuracy. Progress saves automatically on this browser after each completed piece. An unfinished piece is checkpointed during practice and can be resumed from the profile page if its MIDI is still stored here. Existing guest progress from the earlier version moves into the first new profile.
 
 **No server is needed for this device-local version.** Profiles and pictures are stored in this browser's local storage. Your PIN is hashed locally, but this is not a security boundary against someone who can access or alter this computer's browser data. Profiles do not sync between browsers or devices. Clearing site data removes them. Secure cross-device accounts would need a backend service.
 
@@ -32,7 +32,7 @@ Ranking points equal the sum of `difficulty stars × best accuracy` for each uni
 
 The 25 short pieces are original exercises or simplified arrangements of traditional/public-domain compositions. The 21 MIDI scores come from the [Mutopia Project](https://www.mutopiaproject.org/), with individual source and license details in [assets/SOURCES.md](assets/SOURCES.md). The Moonlight Sonata MIDI is separately licensed under **CC BY-SA 2.5**; the repository's MIT software license does not supersede that score license. Other bundled MIDI files are marked public domain by Mutopia.
 
-**Howl's Moving Castle** (Joe Hisaishi's “Merry-Go-Round of Life”) and Kensuke Ushio's **“In the Pool”** are modern copyrighted works. Their note data is not bundled in this public repository. The private MIDI importer can play personal copies the user is allowed to use. A redistribution license would be needed to include those scores in the public catalog.
+**Howl's Moving Castle** (Joe Hisaishi's “Merry-Go-Round of Life”) and Kensuke Ushio's **“In the Pool”** are modern copyrighted works. Their note data is not bundled in this public repository. The private MIDI importer can play personal copies the user is allowed to use. A redistribution license would be needed to include those scores in the public catalog. [Joe Hisaishi's publisher says arrangements require permission](https://joehisaishi.com/category/uncategorized/).
 
 ## Run locally
 

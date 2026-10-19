@@ -5,6 +5,7 @@ import { PracticeSession, addResult, rankSummary, buildTimeline } from './practi
 import { PianoAudio } from './audio.js';
 import { parseMidi, adaptMidiForLaptop } from './midi.js';
 import { currentProfile, updateProfile } from './profiles.js';
+import { loadPersonalSongs, savePersonalSong } from './personal-songs.js';
 
 const $ = selector => document.querySelector(selector);
 const els = {
@@ -20,8 +21,12 @@ const els = {
 };
 const audio = new PianoAudio();
 const imports = [];
+const studyIds = new Set(SONGS.map(song => song.id));
+const isStudy = song => studyIds.has(song.id);
 const library = () => [...FULL_SCORES, ...SONGS, ...imports];
+const playableLibrary = () => mode === 'free' ? [...FULL_SCORES, ...imports] : library();
 let selected = FULL_SCORES[0];
+let lastFreeSong = selected;
 let mode = 'free';
 let speed = 1;
 let octave = 0;
@@ -56,12 +61,12 @@ function saveProgressAndClearCheckpoint() {
 }
 
 function saveCheckpoint(force = false) {
-  if (!session || session.finished || selected.kind === 'imported') return;
+  if (!session || session.finished || (selected.kind === 'imported' && !selected.persisted)) return;
   const now = performance.now();
   if (!force && now - checkpointTime < 1500) return;
   checkpointTime = now;
   const checkpoint = {
-    songId: selected.id, mode, speed, octave, elapsed: session.elapsed,
+    songId: selected.id, songTitle: selected.title, mode, speed, octave, elapsed: session.elapsed,
     waiting: session.waiting, errors: session.errors,
     states: session.events.map(event => event.state === 'hit' ? 'h' : event.state === 'missed' ? 'm' : 'p').join(''),
     savedAt: new Date().toISOString()
@@ -123,12 +128,13 @@ function renderFilters() {
 
 function renderLibrary() {
   const query = els.search.value.trim().toLowerCase();
-  const songs = library();
+  const songs = playableLibrary();
   const visible = songs.filter(song => (!difficultyFilter || song.difficulty === difficultyFilter) && `${song.title} ${song.composer}`.toLowerCase().includes(query));
   els.count.textContent = `${songs.length} PIECES`;
   els.list.replaceChildren();
   if (!visible.length) {
-    const empty = document.createElement('p'); empty.className = 'muted'; empty.textContent = 'No pieces match that search.';
+    const empty = document.createElement('p'); empty.className = 'muted';
+    empty.textContent = mode === 'free' ? 'No full pieces match. Try another search or switch to Learning mode for short studies.' : 'No pieces match that search.';
     els.list.append(empty); return;
   }
   for (const song of visible) {
@@ -294,8 +300,10 @@ function resetSession() {
 }
 
 async function selectSong(song) {
+  if (mode === 'free' && isStudy(song)) return;
   const serial = ++loadingSerial;
   selected = song;
+  if (!isStudy(song)) lastFreeSong = song;
   els.title.textContent = song.title;
   els.composer.textContent = song.composer;
   els.difficulty.textContent = `${'★'.repeat(song.difficulty)} ${['','BEGINNER','EASY','INTERMEDIATE','ADVANCED'][song.difficulty]}`;
@@ -318,7 +326,7 @@ async function selectSong(song) {
 }
 
 async function changeSong(direction) {
-  const songs = library(); const index = songs.findIndex(song => song.id === selected.id);
+  const songs = playableLibrary(); const index = songs.findIndex(song => song.id === selected.id);
   await selectSong(songs[(index + direction + songs.length) % songs.length]);
 }
 
@@ -430,13 +438,31 @@ async function importMidi(file) {
     const adapted = adaptMidiForLaptop(parseMidi(bytes));
     const digest = new Uint8Array(await crypto.subtle.digest('SHA-256',bytes));
     const id = `import-${[...digest.slice(0,8)].map(x => x.toString(16).padStart(2,'0')).join('')}`;
-    const song = { id,title:file.name.replace(/\.(mid|midi)$/i,'').slice(0,80),composer:'Your MIDI · stays on this device',difficulty:3,kind:'imported',events:adapted.notes,duration:adapted.duration,learningSeconds:40 };
+    const song = { id,title:file.name.replace(/\.(mid|midi)$/i,'').slice(0,80),composer:'Your MIDI · saved in this browser',difficulty:3,kind:'imported',events:adapted.notes,duration:adapted.duration,learningSeconds:40 };
+    let saved = true;
+    try { await savePersonalSong(song,bytes); }
+    catch { saved = false; }
+    song.persisted = saved;
     const existing = imports.findIndex(item => item.id === id);
     if (existing >= 0) imports.splice(existing,1);
     imports.push(song);
     await selectSong(song);
-    showFeedback('MIDI ready — full piece in Free mode.');
+    showFeedback(saved ? 'MIDI saved here — full piece in Free mode.' : 'MIDI ready for this visit; this browser could not save it.',!saved);
   } catch(error) { showFeedback(`Could not import MIDI: ${error.message}`,true); }
+}
+
+async function restorePersonalSongs() {
+  try {
+    const records = await loadPersonalSongs();
+    for (const record of records) {
+      try {
+        if (imports.some(song => song.id === record.id)) continue;
+        const adapted = adaptMidiForLaptop(parseMidi(record.bytes));
+        imports.push({ id:record.id,title:record.title,composer:'Your MIDI · saved in this browser',difficulty:record.difficulty || 3,kind:'imported',events:adapted.notes,duration:adapted.duration,learningSeconds:40,persisted:true });
+      } catch { /* A damaged personal file should not hide the rest. */ }
+    }
+    renderLibrary();
+  } catch { /* Private browsing may not permit persistent storage. */ }
 }
 
 async function resumeCheckpoint() {
@@ -469,9 +495,18 @@ function updateModeButtons() {
     button.setAttribute('aria-pressed',String(name === mode));
   }
   els.mode.textContent = mode === 'free' ? 'Free mode' : 'Learning mode'; updateTip();
+  $('#library-intro').textContent = mode === 'free' ? 'Complete pieces from first note to last.' : 'Full-score excerpts and short studies.';
 }
 
-function setMode(value) { if (mode === value) return; mode = value; updateModeButtons(); resetSession(); }
+function setMode(value) {
+  if (mode === value) return;
+  mode = value;
+  difficultyFilter = 0;
+  els.search.value = '';
+  renderFilters(); updateModeButtons();
+  if (mode === 'free' && isStudy(selected)) selectSong(lastFreeSong);
+  else { resetSession(); updateRank(); }
+}
 
 document.addEventListener('keydown',event => {
   if (event.repeat || event.metaKey || event.ctrlKey || event.altKey) return;
@@ -516,7 +551,8 @@ $('#import-midi').addEventListener('click',() => $('#midi-file').click());
 $('#midi-file').addEventListener('change',event => { importMidi(event.target.files[0]); event.target.value=''; });
 
 renderProfileLink(); renderFilters(); renderKeyboard(); updateModeButtons();
-selectSong(selected).then(() => {
+selectSong(selected).then(async () => {
+  await restorePersonalSongs();
   if (new URLSearchParams(location.search).has('resume')) resumeCheckpoint();
 });
 frameTime = performance.now(); requestAnimationFrame(loop);

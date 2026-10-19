@@ -37,7 +37,7 @@ function render() {
   $('#resume-card').hidden = !checkpoint;
   if (checkpoint) {
     const song = allSongs.find(item => item.id === checkpoint.songId);
-    $('#resume-title').textContent = song?.title || checkpoint.songId;
+    $('#resume-title').textContent = song?.title || checkpoint.songTitle || checkpoint.songId;
     const elapsed = Math.max(0, Math.floor(checkpoint.elapsed));
     $('#resume-detail').textContent = `${checkpoint.mode === 'learning' ? 'Learning' : 'Free'} mode · ${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2,'0')} saved`;
   }
