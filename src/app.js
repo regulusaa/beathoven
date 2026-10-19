@@ -1,52 +1,119 @@
 import { SONGS } from './songs.js';
-import { WHITE_KEYS, BLACK_KEYS, WHITE_MIDI, BLACK_MIDI, BLACK_AFTER_WHITE, keyboardMidi, keyForMidi, keyPosition, midiName } from './music.js';
+import { FULL_SCORES } from './full-scores.js';
+import { keyboardMidi, keyForMidi, wideKeyPosition, midiName } from './music.js';
 import { PracticeSession, addResult, rankSummary, buildTimeline } from './practice.js';
 import { PianoAudio } from './audio.js';
+import { parseMidi, adaptMidiForLaptop } from './midi.js';
+import { currentProfile, updateProfile } from './profiles.js';
 
 const $ = selector => document.querySelector(selector);
 const els = {
   list: $('#song-list'), filters: $('#difficulty-filters'), search: $('#song-search'), count: $('#song-count'),
   title: $('#current-title'), composer: $('#current-composer'), difficulty: $('#song-difficulty-label'),
-  stage: $('#note-stage'), grid: $('#lane-grid'), notes: $('#falling-notes'), keyboard: $('#piano-keyboard'),
+  kind: $('#song-kind-label'), source: $('#score-source'),
+  stage: $('#note-stage'), notes: $('#falling-notes'), keyboard: $('#piano-keyboard'),
   overlay: $('#stage-overlay'), start: $('#start-button'), status: $('#stage-status'), feedback: $('#feedback'),
   noteProgress: $('#note-progress'), progressFill: $('#progress-fill'), pause: $('#pause-button'),
   mode: $('#session-mode'), octave: $('#octave-label'), best: $('#best-accuracy'),
   tier: $('#rank-tier'), points: $('#rank-points'), unique: $('#unique-songs'), plays: $('#total-plays'),
-  tipTitle: $('#tip-title'), tipCopy: $('#tip-copy')
+  tipTitle: $('#tip-title'), tipCopy: $('#tip-copy'), profileLink: $('#profile-link')
 };
-
 const audio = new PianoAudio();
-let selected = SONGS[0];
+const imports = [];
+const library = () => [...FULL_SCORES, ...SONGS, ...imports];
+let selected = FULL_SCORES[0];
 let mode = 'free';
 let speed = 1;
 let octave = 0;
 let difficultyFilter = 0;
 let session = null;
+let preview = [];
 let paused = false;
 let frameTime = 0;
 let resultSaved = false;
 let feedbackTimer = 0;
+let loadingSerial = 0;
+let checkpointTime = 0;
 const heldKeys = new Map();
-let progress = readProgress();
+const noteNodes = new Map();
+let progress = currentProfile()?.progress || readGuestProgress();
 
-function readProgress() {
+function readGuestProgress() {
   try {
-    const stored = JSON.parse(localStorage.getItem('beathoven-progress-v1'));
-    return stored && typeof stored === 'object' && stored.songs ? stored : { songs: {}, totalPlays: 0 };
+    const value = JSON.parse(localStorage.getItem('beathoven-progress-v1'));
+    return value?.songs ? value : { songs: {}, totalPlays: 0 };
   } catch { return { songs: {}, totalPlays: 0 }; }
 }
 
-function saveProgress() {
-  try { localStorage.setItem('beathoven-progress-v1', JSON.stringify(progress)); }
-  catch { showFeedback('Progress could not be saved on this device.', true); }
+function saveProgressAndClearCheckpoint() {
+  try {
+    if (currentProfile()) updateProfile({ progress, checkpoint: null });
+    else {
+      localStorage.setItem('beathoven-progress-v1', JSON.stringify(progress));
+      localStorage.removeItem('beathoven-guest-checkpoint-v1');
+    }
+  } catch { showFeedback('Progress could not be saved on this device.', true); }
+}
+
+function saveCheckpoint(force = false) {
+  if (!session || session.finished || selected.kind === 'imported') return;
+  const now = performance.now();
+  if (!force && now - checkpointTime < 1500) return;
+  checkpointTime = now;
+  const checkpoint = {
+    songId: selected.id, mode, speed, octave, elapsed: session.elapsed,
+    waiting: session.waiting, errors: session.errors,
+    states: session.events.map(event => event.state === 'hit' ? 'h' : event.state === 'missed' ? 'm' : 'p').join(''),
+    savedAt: new Date().toISOString()
+  };
+  try {
+    if (currentProfile()) updateProfile({ checkpoint });
+    else localStorage.setItem('beathoven-guest-checkpoint-v1', JSON.stringify(checkpoint));
+  } catch { /* Quota or private mode: completed scores still have their own save. */ }
+}
+
+function savedCheckpoint() {
+  if (currentProfile()) return currentProfile().checkpoint;
+  try { return JSON.parse(localStorage.getItem('beathoven-guest-checkpoint-v1')); } catch { return null; }
+}
+
+function formatDuration(seconds) {
+  if (!Number.isFinite(seconds)) return '';
+  const total = Math.max(0, Math.round(seconds));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
+async function ensureScore(song) {
+  if (!song.midiUrl || song.events) return;
+  if (!song.loadPromise) song.loadPromise = fetch(song.midiUrl)
+    .then(response => { if (!response.ok) throw new Error('Score could not be loaded.'); return response.arrayBuffer(); })
+    .then(buffer => {
+      const adaptation = adaptMidiForLaptop(parseMidi(buffer));
+      song.events = adaptation.notes;
+      song.duration = adaptation.duration;
+      song.sourceNoteCount = adaptation.sourceNoteCount;
+      song.learningSeconds = 40;
+    });
+  try { await song.loadPromise; }
+  catch (error) { song.loadPromise = null; throw error; }
+}
+
+function renderProfileLink() {
+  const profile = currentProfile();
+  const badge = $('#header-avatar');
+  const label = $('#header-profile-name');
+  if (profile) {
+    if (profile.avatar) { badge.style.backgroundImage = `url(${profile.avatar})`; badge.textContent = ''; }
+    else { badge.style.backgroundImage = ''; badge.textContent = profile.name[0].toUpperCase(); }
+    label.textContent = profile.name;
+  } else { badge.style.backgroundImage = ''; badge.textContent = '♙'; label.textContent = 'Create profile'; }
 }
 
 function renderFilters() {
   els.filters.replaceChildren();
   [0,1,2,3,4].forEach(level => {
     const button = document.createElement('button');
-    button.type = 'button';
-    button.className = `filter-button${difficultyFilter === level ? ' active' : ''}`;
+    button.type = 'button'; button.className = `filter-button${difficultyFilter === level ? ' active' : ''}`;
     button.textContent = level === 0 ? 'All' : '★'.repeat(level);
     button.setAttribute('aria-pressed', String(difficultyFilter === level));
     button.addEventListener('click', () => { difficultyFilter = level; renderFilters(); renderLibrary(); });
@@ -56,67 +123,72 @@ function renderFilters() {
 
 function renderLibrary() {
   const query = els.search.value.trim().toLowerCase();
-  const visible = SONGS.filter(song => (!difficultyFilter || song.difficulty === difficultyFilter) && `${song.title} ${song.composer}`.toLowerCase().includes(query));
-  els.count.textContent = `${SONGS.length} SONGS`;
+  const songs = library();
+  const visible = songs.filter(song => (!difficultyFilter || song.difficulty === difficultyFilter) && `${song.title} ${song.composer}`.toLowerCase().includes(query));
+  els.count.textContent = `${songs.length} PIECES`;
   els.list.replaceChildren();
   if (!visible.length) {
-    const empty = document.createElement('p');
-    empty.className = 'muted'; empty.textContent = 'No songs match that search.';
+    const empty = document.createElement('p'); empty.className = 'muted'; empty.textContent = 'No pieces match that search.';
     els.list.append(empty); return;
   }
-  visible.forEach(song => {
+  for (const song of visible) {
     const button = document.createElement('button');
-    button.type = 'button';
-    button.className = `song-item${song.id === selected.id ? ' active' : ''}`;
+    button.type = 'button'; button.className = `song-item${song.id === selected.id ? ' active' : ''}`;
     button.setAttribute('aria-current', song.id === selected.id ? 'true' : 'false');
-    const art = document.createElement('span'); art.className = 'song-art'; art.textContent = '♫';
+    const art = document.createElement('span'); art.className = 'song-art'; art.textContent = song.kind === 'full' ? '♬' : '♫';
     const text = document.createElement('span'); text.className = 'song-text';
     const title = document.createElement('strong'); title.textContent = song.title;
     const detail = document.createElement('small');
+    const duration = song.duration ? formatDuration(song.duration) : song.kind === 'full' ? 'Full piece' : 'Short study';
     const best = progress.songs[song.id]?.best;
-    detail.textContent = best === undefined ? song.composer : `${song.composer} · Best ${best}%`;
+    detail.textContent = `${song.composer} · ${duration}${best === undefined ? '' : ` · ${best}% best`}`;
     text.append(title, detail);
     const stars = document.createElement('span'); stars.className = 'song-stars'; stars.textContent = '★'.repeat(song.difficulty);
-    button.append(art, text, stars);
+    button.append(art,text,stars);
     button.addEventListener('click', () => selectSong(song));
     els.list.append(button);
-  });
+  }
 }
+
+function isWhite(midi) { return [0,2,4,5,7,9,11].includes(midi % 12); }
 
 function renderKeyboard() {
   els.keyboard.replaceChildren();
-  WHITE_KEYS.forEach((key, index) => {
-    const midi = WHITE_MIDI[index] + octave * 12;
-    const element = document.createElement('button'); element.type = 'button'; element.className = 'white-key';
-    element.dataset.key = key; element.dataset.midi = midi;
-    element.setAttribute('aria-label', `${midiName(midi)}, keyboard ${key.toUpperCase()}`);
-    element.innerHTML = `<span class="key-name">${midiName(midi)}</span><span class="key-letter">${key.toUpperCase()}</span>`;
-    attachPointer(element, key);
-    els.keyboard.append(element);
-  });
-  BLACK_KEYS.forEach((key, index) => {
-    const midi = BLACK_MIDI[index] + octave * 12;
-    const element = document.createElement('button'); element.type = 'button'; element.className = 'black-key';
-    element.style.left = `${(BLACK_AFTER_WHITE[index] + 1) / 9 * 100}%`;
-    element.dataset.key = key; element.dataset.midi = midi;
-    element.setAttribute('aria-label', `${midiName(midi)}, keyboard ${key.toUpperCase()}`);
-    element.innerHTML = `<span class="key-letter">${key.toUpperCase()}</span>`;
-    attachPointer(element, key);
-    els.keyboard.append(element);
-  });
+  const start = 48 + octave * 12;
+  for (let midi = start; midi <= start + 35; midi++) {
+    if (!isWhite(midi)) continue;
+    const key = keyForMidi(midi, octave);
+    const element = document.createElement('button'); element.type = 'button';
+    element.className = `white-key${key ? ' mapped-key' : ''}`;
+    element.dataset.midi = midi;
+    element.setAttribute('aria-label', `${midiName(midi)}${key ? `, keyboard ${key.toUpperCase()}` : ''}`);
+    const name = document.createElement('span'); name.className = 'key-name'; name.textContent = midiName(midi);
+    const letter = document.createElement('span'); letter.className = 'key-letter'; letter.textContent = key?.toUpperCase() || '';
+    element.append(name,letter); attachPointer(element,midi); els.keyboard.append(element);
+  }
+  for (let midi = start; midi <= start + 35; midi++) {
+    if (isWhite(midi)) continue;
+    const key = keyForMidi(midi,octave);
+    const element = document.createElement('button'); element.type = 'button';
+    element.className = `black-key${key ? ' mapped-key' : ''}`;
+    element.style.left = `${wideKeyPosition(midi,octave)}%`;
+    element.dataset.midi = midi;
+    element.setAttribute('aria-label', `${midiName(midi)}${key ? `, keyboard ${key.toUpperCase()}` : ''}`);
+    element.textContent = key?.toUpperCase() || '';
+    attachPointer(element,midi); els.keyboard.append(element);
+  }
   updateTargetKey();
 }
 
-function attachPointer(element, key) {
+function attachPointer(element,midi) {
   element.addEventListener('pointerdown', event => {
-    event.preventDefault(); element.setPointerCapture(event.pointerId); pressKey(key, `pointer-${event.pointerId}`);
+    event.preventDefault(); element.setPointerCapture(event.pointerId);
+    pressMidi(midi,`pointer-${event.pointerId}`);
   });
   element.addEventListener('pointerup', event => releaseKey(`pointer-${event.pointerId}`));
   element.addEventListener('pointercancel', event => releaseKey(`pointer-${event.pointerId}`));
   element.addEventListener('lostpointercapture', event => releaseKey(`pointer-${event.pointerId}`));
 }
-
-function renderLanes() { els.grid.replaceChildren(...Array.from({ length: 9 }, () => document.createElement('div'))); }
 
 function noteColor(midi) {
   const colors = ['#c9a9ff','#f6a6ca','#f5c87d','#87d6d1','#98bbf2','#b4e2aa','#e7a9e0'];
@@ -124,44 +196,54 @@ function noteColor(midi) {
 }
 
 function renderNotes() {
-  const timeline = session?.events ?? buildTimeline(selected, speed, octave);
-  els.notes.replaceChildren();
-  timeline.forEach(event => {
-    if (event.midi === null) return;
-    const element = document.createElement('div');
-    element.className = `falling-note ${BLACK_MIDI.includes(event.midi - octave * 12) ? 'black' : 'white'}`;
-    element.dataset.index = event.index;
-    element.style.left = `${keyPosition(event.midi, octave)}%`;
-    element.style.background = `linear-gradient(180deg, ${noteColor(event.midi)}, ${noteColor(event.midi)}d9)`;
-    element.textContent = midiName(event.midi).replace(/\d/,'');
-    els.notes.append(element);
-  });
-  positionNotes();
+  els.notes.replaceChildren(); noteNodes.clear(); positionNotes();
 }
 
 function positionNotes() {
-  const events = session?.events ?? buildTimeline(selected, speed, octave);
+  const events = session?.events ?? preview;
+  if (!events.length) return;
   const elapsed = session?.elapsed ?? -2.25;
   const height = els.stage.clientHeight;
   const lineY = height - 26;
-  const pixelsPerSecond = Math.max(92, height * .31);
+  const pixelsPerSecond = Math.max(42,height * .16);
   const target = session?.mode === 'learning' ? session.target : null;
-  for (const element of els.notes.children) {
-    const event = events[Number(element.dataset.index)];
-    const barHeight = Math.max(13, event.duration * pixelsPerSecond);
+  let low = 0, high = events.length;
+  while (low < high) { const mid = (low + high) >> 1; if (events[mid].start < elapsed - 15) low = mid + 1; else high = mid; }
+  const visible = new Set();
+  for (let i = low; i < events.length; i++) {
+    const event = events[i];
+    if (event.start > elapsed + height / pixelsPerSecond + 4) break;
+    if (event.midi === null) continue;
+    const position = wideKeyPosition(event.midi,octave);
+    if (position === null) continue;
+    const barHeight = Math.max(10,event.duration * pixelsPerSecond);
     const bottom = lineY - (event.start - elapsed) * pixelsPerSecond;
     const top = bottom - barHeight;
+    if (top > height + 5 || bottom < -5) continue;
+    visible.add(event.index);
+    let element = noteNodes.get(event.index);
+    if (!element) {
+      element = document.createElement('div');
+      element.className = `falling-note ${isWhite(event.midi) ? 'white' : 'black'}`;
+      element.style.left = `${position}%`;
+      element.style.background = noteColor(event.midi);
+      element.textContent = midiName(event.midi).replace(/\d/g,'');
+      els.notes.append(element); noteNodes.set(event.index,element);
+    }
     element.style.top = `${top}px`;
     element.style.height = `${barHeight}px`;
-    element.style.display = top > height + 5 || bottom < -5 ? 'none' : 'flex';
     element.classList.toggle('hit', event.state === 'hit');
     element.classList.toggle('missed', event.state === 'missed');
     element.classList.toggle('target', target?.index === event.index && session.waiting !== null);
   }
+  for (const [index,element] of noteNodes) {
+    if (!visible.has(index)) { element.remove(); noteNodes.delete(index); }
+  }
 }
 
 function renderProgress() {
-  const total = session?.total ?? selected.notes.filter(note => note.pitch).length;
+  const events = session?.events ?? preview;
+  const total = events.filter(event => event.midi !== null).length;
   const judged = session?.events.filter(event => event.midi !== null && event.state !== 'pending').length ?? 0;
   els.noteProgress.textContent = `${judged} / ${total} NOTES`;
   els.progressFill.style.width = `${total ? judged / total * 100 : 0}%`;
@@ -181,88 +263,98 @@ function updateRank() {
 function updateTargetKey() {
   for (const key of els.keyboard.querySelectorAll('.target-key')) key.classList.remove('target-key');
   if (session?.mode !== 'learning' || !session.target) return;
-  const key = keyForMidi(session.target.midi, octave);
-  if (key) els.keyboard.querySelector(`[data-key="${key}"]`)?.classList.add('target-key');
+  els.keyboard.querySelector(`[data-midi="${session.target.midi}"]`)?.classList.add('target-key');
 }
 
 function updateTip() {
   const tips = mode === 'learning'
-    ? ['Watch the next bar','Learning mode waits when a note is missed. Find the highlighted key, play it, and the song continues.']
-    : ['Keep the pulse','In Free mode the music keeps moving. Aim to meet the glowing line, then review your accuracy at the end.'];
+    ? ['Practice the opening','Full pieces use an opening excerpt here. Learning mode waits on a missed note until you play the highlighted key.']
+    : ['Play the whole piece','Free mode runs from the first note to the last. Long piano scores are adapted to a single-note laptop line.'];
   els.tipTitle.textContent = tips[0]; els.tipCopy.textContent = tips[1];
 }
 
-function showFeedback(message, bad = false) {
-  els.feedback.textContent = message;
-  els.feedback.classList.toggle('bad', bad);
-  els.feedback.classList.add('show');
-  clearTimeout(feedbackTimer);
-  feedbackTimer = setTimeout(() => els.feedback.classList.remove('show'), 1100);
+function showFeedback(message,bad = false) {
+  els.feedback.textContent = message; els.feedback.classList.toggle('bad',bad); els.feedback.classList.add('show');
+  clearTimeout(feedbackTimer); feedbackTimer = setTimeout(() => els.feedback.classList.remove('show'),1200);
 }
 
 function resetSession() {
   audio.stopAll(); heldKeys.clear();
   for (const element of els.keyboard.querySelectorAll('.pressed')) element.classList.remove('pressed');
   session = null; paused = false; resultSaved = false;
+  preview = selected.events || selected.notes ? buildTimeline(selected,speed,octave,mode) : [];
   els.overlay.hidden = false;
   els.overlay.querySelector('strong').textContent = 'Ready when you are.';
   els.overlay.querySelector('span').textContent = 'Follow the notes down to your keys.';
   els.start.innerHTML = 'Start playing <span>→</span>';
-  els.status.textContent = 'READY TO PLAY';
+  els.start.disabled = !preview.length;
+  els.status.textContent = preview.length ? 'READY TO PLAY' : 'LOADING SCORE';
   els.pause.disabled = true; els.pause.querySelector('span').textContent = 'Pause';
   renderNotes(); renderProgress(); updateTargetKey();
 }
 
-function selectSong(song) {
+async function selectSong(song) {
+  const serial = ++loadingSerial;
   selected = song;
   els.title.textContent = song.title;
   els.composer.textContent = song.composer;
   els.difficulty.textContent = `${'★'.repeat(song.difficulty)} ${['','BEGINNER','EASY','INTERMEDIATE','ADVANCED'][song.difficulty]}`;
+  els.source.hidden = !song.sourceUrl;
+  if (song.sourceUrl) els.source.href = song.sourceUrl;
+  els.kind.textContent = song.kind === 'full' ? 'FULL PIECE · loading…' : song.kind === 'imported' ? 'YOUR MIDI · FULL LENGTH' : 'SHORT STUDY';
   resetSession(); updateRank();
+  try {
+    await ensureScore(song);
+    if (serial !== loadingSerial) return;
+    els.kind.textContent = song.kind === 'full' ? `FULL PIECE · ${formatDuration(song.duration)}` : song.kind === 'imported' ? `YOUR MIDI · ${formatDuration(song.duration)}` : 'SHORT STUDY';
+    resetSession(); updateRank();
+  } catch(error) {
+    if (serial !== loadingSerial) return;
+    els.status.textContent = 'SCORE UNAVAILABLE';
+    els.overlay.querySelector('strong').textContent = 'Could not load this score.';
+    els.overlay.querySelector('span').textContent = error.message;
+    showFeedback(error.message,true);
+  }
 }
 
-function changeSong(direction) {
-  const index = SONGS.findIndex(song => song.id === selected.id);
-  selectSong(SONGS[(index + direction + SONGS.length) % SONGS.length]);
+async function changeSong(direction) {
+  const songs = library(); const index = songs.findIndex(song => song.id === selected.id);
+  await selectSong(songs[(index + direction + songs.length) % songs.length]);
 }
 
-function startSession() {
+async function startSession() {
   if ($('#result-dialog').open) $('#result-dialog').close();
   if (session && paused) {
     paused = false; session.playing = true; els.overlay.hidden = true;
     els.status.textContent = 'PLAYING'; els.pause.querySelector('span').textContent = 'Pause';
     frameTime = performance.now(); return;
   }
-  session = new PracticeSession(selected, mode, speed, octave);
-  session.elapsed = -Math.max(1.6, 3 * 60 / (selected.bpm * speed));
-  resultSaved = false;
-  els.overlay.hidden = true;
-  els.pause.disabled = false;
-  els.status.textContent = 'GET READY';
-  frameTime = performance.now();
-  renderNotes(); renderProgress(); updateTargetKey();
+  try { await ensureScore(selected); } catch(error) { showFeedback(error.message,true); return; }
+  session = new PracticeSession(selected,mode,speed,octave);
+  session.elapsed = -Math.max(1.6, 3 * 60 / ((selected.bpm || 90) * speed));
+  resultSaved = false; els.overlay.hidden = true; els.pause.disabled = false;
+  els.status.textContent = 'GET READY'; frameTime = performance.now();
+  renderNotes(); renderProgress(); updateTargetKey(); saveCheckpoint(true);
   audio.unlock().catch(() => {});
 }
 
 function togglePause() {
   if (!session || session.finished) return;
-  paused = !paused; session.playing = !paused;
-  els.overlay.hidden = !paused;
+  paused = !paused; session.playing = !paused; els.overlay.hidden = !paused;
   if (paused) {
     els.overlay.querySelector('strong').textContent = 'Take a breath.';
     els.overlay.querySelector('span').textContent = 'Resume when you are ready.';
     els.start.innerHTML = 'Resume playing <span>→</span>';
-    els.status.textContent = 'PAUSED';
+    els.status.textContent = 'PAUSED'; saveCheckpoint(true);
   } else { els.status.textContent = 'PLAYING'; frameTime = performance.now(); }
   els.pause.querySelector('span').textContent = paused ? 'Resume' : 'Pause';
 }
 
 function finishSession() {
   if (!session || resultSaved) return;
-  resultSaved = true;
-  audio.stopAll();
-  progress = addResult(progress, selected, mode, session.accuracy);
-  saveProgress(); updateRank(); renderProgress();
+  resultSaved = true; audio.stopAll();
+  progress = addResult(progress,selected,mode,session.accuracy);
+  saveProgressAndClearCheckpoint(); updateRank(); renderProgress();
   els.status.textContent = 'COMPLETE';
   $('#result-title').textContent = session.accuracy >= 90 ? 'Beautifully played.' : session.accuracy >= 60 ? 'Nice progress.' : 'Keep practicing.';
   $('#result-accuracy').textContent = `${session.accuracy}%`;
@@ -272,20 +364,21 @@ function finishSession() {
   $('#result-dialog').showModal();
 }
 
-function pressKey(key, source) {
+function pressMidi(midi,source) {
   if (heldKeys.has(source)) return;
-  const midi = keyboardMidi(key, octave);
-  if (midi === null) return;
-  heldKeys.set(source, midi);
-  els.keyboard.querySelector(`[data-key="${key}"]`)?.classList.add('pressed');
+  heldKeys.set(source,midi);
+  els.keyboard.querySelector(`[data-midi="${midi}"]`)?.classList.add('pressed');
   audio.start(midi).catch(() => {});
   if (session && !paused && !session.finished) {
     const result = session.press(midi);
     if (result === 'hit') showFeedback('Nice!');
-    else if (result === 'wrong' && mode === 'learning') showFeedback(`Try ${midiName(session.target.midi)} · ${keyForMidi(session.target.midi, octave).toUpperCase()}`, true);
-    if (session.waiting !== null) els.status.textContent = 'PLAY THE HIGHLIGHTED KEY';
-    else if (session.elapsed >= 0) els.status.textContent = 'PLAYING';
-    updateTargetKey(); renderProgress(); positionNotes();
+    else if (result === 'wrong' && mode === 'learning') {
+      const target = session.target;
+      const key = target ? keyForMidi(target.midi,octave) : null;
+      showFeedback(`Try ${target ? midiName(target.midi) : 'the highlighted note'}${key ? ` · ${key.toUpperCase()}` : ''}`,true);
+    }
+    els.status.textContent = session.waiting !== null ? 'PLAY THE HIGHLIGHTED KEY' : 'PLAYING';
+    updateTargetKey(); renderProgress(); positionNotes(); saveCheckpoint();
     if (session.finished) finishSession();
   }
 }
@@ -296,77 +389,124 @@ function releaseKey(source) {
   heldKeys.delete(source);
   if (![...heldKeys.values()].includes(midi)) {
     audio.stop(midi);
-    const key = keyForMidi(midi, octave);
-    if (key) els.keyboard.querySelector(`[data-key="${key}"]`)?.classList.remove('pressed');
+    els.keyboard.querySelector(`[data-midi="${midi}"]`)?.classList.remove('pressed');
   }
 }
 
 function changeOctave(delta) {
-  const next = Math.max(-2, Math.min(2, octave + delta));
+  const next = Math.max(-2,Math.min(2,octave + delta));
   if (next === octave) return;
+  const difference = next - octave;
+  for (const source of [...heldKeys.keys()]) releaseKey(source);
   octave = next;
   els.octave.textContent = `${midiName(60 + octave * 12)}–${midiName(74 + octave * 12)}`;
-  $('#octave-down').disabled = octave === -2;
-  $('#octave-up').disabled = octave === 2;
-  resetSession(); renderKeyboard();
+  $('#octave-down').disabled = octave === -2; $('#octave-up').disabled = octave === 2;
+  if (session) session.events.forEach(event => { if (event.midi !== null) event.midi += 12 * difference; });
+  preview = selected.events || selected.notes ? buildTimeline(selected,speed,octave,mode) : [];
+  renderKeyboard(); renderNotes(); saveCheckpoint(true);
 }
 
 function loop(now) {
-  const delta = Math.min(.1, Math.max(0, (now - frameTime) / 1000));
-  frameTime = now;
+  const delta = Math.min(.1,Math.max(0,(now - frameTime) / 1000)); frameTime = now;
   if (session && !paused && !session.finished) {
     session.advance(delta);
     if (session.waiting !== null) els.status.textContent = 'PLAY THE HIGHLIGHTED KEY';
     else if (session.elapsed >= 0) els.status.textContent = 'PLAYING';
-    else els.status.textContent = `GET READY · ${Math.ceil(-session.elapsed)} `;
-    renderProgress(); updateTargetKey();
+    else els.status.textContent = `GET READY · ${Math.ceil(-session.elapsed)}`;
+    renderProgress(); updateTargetKey(); saveCheckpoint();
     if (session.finished) finishSession();
   }
-  positionNotes();
-  requestAnimationFrame(loop);
+  positionNotes(); requestAnimationFrame(loop);
 }
 
-document.addEventListener('keydown', event => {
+async function importMidi(file) {
+  if (!file) return;
+  if (file.size > 10 * 1024 * 1024) { showFeedback('Choose a MIDI file smaller than 10 MB.',true); return; }
+  try {
+    const bytes = await file.arrayBuffer();
+    const adapted = adaptMidiForLaptop(parseMidi(bytes));
+    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256',bytes));
+    const id = `import-${[...digest.slice(0,8)].map(x => x.toString(16).padStart(2,'0')).join('')}`;
+    const song = { id,title:file.name.replace(/\.(mid|midi)$/i,'').slice(0,80),composer:'Your MIDI · stays on this device',difficulty:3,kind:'imported',events:adapted.notes,duration:adapted.duration,learningSeconds:40 };
+    const existing = imports.findIndex(item => item.id === id);
+    if (existing >= 0) imports.splice(existing,1);
+    imports.push(song);
+    await selectSong(song);
+    showFeedback('MIDI ready — full piece in Free mode.');
+  } catch(error) { showFeedback(`Could not import MIDI: ${error.message}`,true); }
+}
+
+async function resumeCheckpoint() {
+  const saved = savedCheckpoint();
+  if (!saved) return;
+  const song = library().find(item => item.id === saved.songId);
+  if (!song) return;
+  mode = saved.mode === 'learning' ? 'learning' : 'free';
+  speed = [0.5,0.75,1,1.25].includes(saved.speed) ? saved.speed : 1;
+  octave = Math.max(-2,Math.min(2,Number(saved.octave) || 0));
+  $('#speed-select').value = String(speed);
+  updateModeButtons();
+  els.octave.textContent = `${midiName(60 + octave * 12)}–${midiName(74 + octave * 12)}`;
+  renderKeyboard(); await selectSong(song);
+  session = new PracticeSession(selected,mode,speed,octave);
+  if (saved.states?.length !== session.events.length) { session=null; resetSession(); return; }
+  session.events.forEach((event,index) => { event.state = saved.states[index] === 'h' ? 'hit' : saved.states[index] === 'm' ? 'missed' : 'pending'; });
+  session.elapsed = saved.elapsed;
+  session.errors = saved.errors || 0;
+  session.waiting = saved.waiting ?? null;
+  resultSaved = false; paused = false;
+  els.overlay.hidden = true; els.pause.disabled = false;
+  els.status.textContent = session.waiting !== null ? 'PLAY THE HIGHLIGHTED KEY' : 'PLAYING';
+  frameTime = performance.now(); renderNotes(); renderProgress(); updateTargetKey();
+}
+
+function updateModeButtons() {
+  for (const [name,button] of [['free',$('#free-mode')],['learning',$('#learning-mode')]]) {
+    button.classList.toggle('active',name === mode);
+    button.setAttribute('aria-pressed',String(name === mode));
+  }
+  els.mode.textContent = mode === 'free' ? 'Free mode' : 'Learning mode'; updateTip();
+}
+
+function setMode(value) { if (mode === value) return; mode = value; updateModeButtons(); resetSession(); }
+
+document.addEventListener('keydown',event => {
   if (event.repeat || event.metaKey || event.ctrlKey || event.altKey) return;
   const tag = event.target?.tagName;
   if (['INPUT','TEXTAREA','SELECT'].includes(tag) || event.target?.isContentEditable) return;
   if (document.querySelector('dialog[open]')) return;
   const key = event.key.toLowerCase();
-  if (keyboardMidi(key, octave) !== null) { event.preventDefault(); pressKey(key, `keyboard-${key}`); }
+  const midi = keyboardMidi(key,octave);
+  if (midi !== null) { event.preventDefault(); pressMidi(midi,`keyboard-${key}`); }
   else if (key === ' ') { event.preventDefault(); if (!session || session.finished || paused) startSession(); else togglePause(); }
   else if (key === 'arrowup') { event.preventDefault(); changeOctave(1); }
   else if (key === 'arrowdown') { event.preventDefault(); changeOctave(-1); }
 });
-document.addEventListener('keyup', event => releaseKey(`keyboard-${event.key.toLowerCase()}`));
-window.addEventListener('blur', () => { for (const source of [...heldKeys.keys()]) releaseKey(source); });
-els.search.addEventListener('input', renderLibrary);
-els.start.addEventListener('click', startSession);
-$('#restart-button').addEventListener('click', () => { paused = false; session = null; startSession(); });
-els.pause.addEventListener('click', togglePause);
-$('#previous-song').addEventListener('click', () => changeSong(-1));
-$('#next-song').addEventListener('click', () => changeSong(1));
-$('#free-mode').addEventListener('click', () => setMode('free'));
-$('#learning-mode').addEventListener('click', () => setMode('learning'));
-$('#speed-select').addEventListener('change', event => { speed = Number(event.target.value); resetSession(); });
-$('#sound-button').addEventListener('click', () => { audio.enabled = !audio.enabled; if (!audio.enabled) audio.stopAll(); $('#sound-button').textContent = audio.enabled ? '♪' : '♩'; $('#sound-button').setAttribute('aria-label', audio.enabled ? 'Mute sound' : 'Unmute sound'); });
-$('#octave-down').addEventListener('click', () => changeOctave(-1));
-$('#octave-up').addEventListener('click', () => changeOctave(1));
-$('#help-button').addEventListener('click', () => $('#help-dialog').showModal());
-$('#close-help').addEventListener('click', () => $('#help-dialog').close());
-$('#got-it').addEventListener('click', () => $('#help-dialog').close());
-$('#result-retry').addEventListener('click', startSession);
-$('#result-next').addEventListener('click', () => { $('#result-dialog').close(); changeSong(1); startSession(); });
+document.addEventListener('keyup',event => releaseKey(`keyboard-${event.key.toLowerCase()}`));
+window.addEventListener('blur',() => { for (const source of [...heldKeys.keys()]) releaseKey(source); });
+window.addEventListener('pagehide',() => saveCheckpoint(true));
+els.search.addEventListener('input',renderLibrary);
+els.start.addEventListener('click',startSession);
+$('#restart-button').addEventListener('click',() => { paused=false; session=null; startSession(); });
+els.pause.addEventListener('click',togglePause);
+$('#previous-song').addEventListener('click',() => changeSong(-1));
+$('#next-song').addEventListener('click',() => changeSong(1));
+$('#free-mode').addEventListener('click',() => setMode('free'));
+$('#learning-mode').addEventListener('click',() => setMode('learning'));
+$('#speed-select').addEventListener('change',event => { speed=Number(event.target.value); resetSession(); });
+$('#sound-button').addEventListener('click',() => { audio.enabled=!audio.enabled; if (!audio.enabled) audio.stopAll(); $('#sound-button').textContent=audio.enabled?'♪':'♩'; $('#sound-button').setAttribute('aria-label',audio.enabled?'Mute sound':'Unmute sound'); });
+$('#octave-down').addEventListener('click',() => changeOctave(-1));
+$('#octave-up').addEventListener('click',() => changeOctave(1));
+$('#help-button').addEventListener('click',() => $('#help-dialog').showModal());
+$('#close-help').addEventListener('click',() => $('#help-dialog').close());
+$('#got-it').addEventListener('click',() => $('#help-dialog').close());
+$('#result-retry').addEventListener('click',() => { session=null; startSession(); });
+$('#result-next').addEventListener('click',async () => { $('#result-dialog').close(); await changeSong(1); startSession(); });
+$('#import-midi').addEventListener('click',() => $('#midi-file').click());
+$('#midi-file').addEventListener('change',event => { importMidi(event.target.files[0]); event.target.value=''; });
 
-function setMode(value) {
-  if (mode === value) return;
-  mode = value;
-  for (const [name, button] of [['free',$('#free-mode')],['learning',$('#learning-mode')]]) {
-    button.classList.toggle('active', name === mode);
-    button.setAttribute('aria-pressed', String(name === mode));
-  }
-  els.mode.textContent = mode === 'free' ? 'Free mode' : 'Learning mode';
-  updateTip(); resetSession();
-}
-
-renderLanes(); renderFilters(); renderKeyboard(); selectSong(selected); updateTip();
+renderProfileLink(); renderFilters(); renderKeyboard(); updateModeButtons();
+selectSong(selected).then(() => {
+  if (new URLSearchParams(location.search).has('resume')) resumeCheckpoint();
+});
 frameTime = performance.now(); requestAnimationFrame(loop);

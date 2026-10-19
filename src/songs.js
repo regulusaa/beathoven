@@ -30,7 +30,7 @@ const entries = [
 ];
 
 export const SONGS = entries.map(([id,title,composer,difficulty,bpm,score]) => ({
-  id, title, composer, difficulty, bpm,
+  id, title, composer, difficulty, bpm, kind: 'study',
   notes: score.split(' ').map(token => {
     const [pitch, beats] = token.split('/');
     return { pitch: pitch === 'R' ? null : pitch, beats: Number(beats) };

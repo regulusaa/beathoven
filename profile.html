@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0d16">
+  <title>Your profile — Beathoven</title>
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./profile.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./index.html"><span class="brand-mark">♮</span><span>beat<span class="brand-strong">hoven</span><small>PIANO STARTS HERE</small></span></a>
+    <a class="text-button" href="./index.html">← Back to piano</a>
+  </header>
+  <main class="profile-main">
+    <div class="profile-heading"><div class="section-eyebrow">YOUR STUDIO</div><h1>Every note counts.</h1><p>Sign in here to keep your rank, accuracy, and practice progress on this browser.</p></div>
+
+    <section id="auth-panel" class="auth-panel" aria-label="Local profile login">
+      <div class="auth-header"><span class="auth-icon">✦</span><div><h2>Your local profile</h2><p>Saved on this device. No server or subscription.</p></div></div>
+      <div class="auth-tabs"><button id="signin-tab" type="button" class="active">Sign in</button><button id="create-tab" type="button">Create profile</button></div>
+      <form id="signin-form">
+        <label>Profile name<input name="name" type="text" maxlength="32" autocomplete="username" required></label>
+        <label>PIN<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="current-password" required></label>
+        <button class="primary-button" type="submit">Sign in <span>→</span></button>
+      </form>
+      <form id="create-form" hidden>
+        <label>Profile name<input name="name" type="text" maxlength="32" minlength="2" autocomplete="username" required></label>
+        <label>PIN <small>4–12 digits</small><input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="new-password" required></label>
+        <button class="primary-button" type="submit">Create profile <span>→</span></button>
+      </form>
+      <p id="auth-error" class="form-error" role="alert"></p>
+      <p class="privacy-note">This is a device-local login. Your PIN and data stay in this browser. It does not sync across devices or protect against someone with access to this computer's browser data.</p>
+    </section>
+
+    <section id="profile-panel" class="profile-panel" hidden aria-label="Your profile">
+      <div class="profile-hero"><div class="avatar-wrap"><div id="avatar" class="profile-avatar"></div><button id="avatar-change" class="avatar-edit" type="button" title="Change profile picture" aria-label="Change profile picture">✎</button><input id="avatar-upload" type="file" accept="image/*" hidden></div><div class="profile-identity"><span class="section-eyebrow">PIANIST PROFILE</span><h2 id="profile-name"></h2><p id="profile-since"></p></div><button id="signout-button" class="small-button" type="button">Sign out</button></div>
+      <p id="avatar-error" class="form-error" role="alert"></p>
+      <div class="profile-stats"><div><span>RANK</span><strong id="profile-rank">Beginner</strong></div><div><span>POINTS</span><strong id="profile-points">0</strong></div><div><span>SONGS PLAYED</span><strong id="profile-songs">0</strong></div><div><span>TOTAL PLAYS</span><strong id="profile-plays">0</strong></div></div>
+      <div id="resume-card" class="resume-card" hidden><div><span class="section-eyebrow">PICK UP WHERE YOU LEFT OFF</span><strong id="resume-title"></strong><p id="resume-detail"></p></div><a class="primary-button" href="./index.html?resume=1">Resume <span>→</span></a></div>
+      <div class="history-heading"><div><span class="section-eyebrow">YOUR JOURNEY</span><h3>Song history</h3></div><a href="./index.html">Play more →</a></div>
+      <div id="profile-history" class="profile-history"></div>
+      <p class="privacy-note">Progress saves automatically after each completed song and while you practice. Clearing this browser's site data removes local profiles and their scores.</p>
+    </section>
+  </main>
+  <script type="module" src="./src/profile-page.js"></script>
+</body>
+</html>

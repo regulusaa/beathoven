@@ -56,6 +56,7 @@ test('timing and ranking use tempo, difficulty, and best accuracy', () => {
   const one = addResult(null, demo, 'free', 72);
   const two = addResult(one, demo, 'free', 60);
   assert.equal(two.songs.demo.best, 72);
+  assert.equal(two.songs.demo.title, 'demo');
   assert.equal(two.totalPlays, 2);
   assert.deepEqual(rankSummary(two), { points:144, unique:1, totalPlays:2, tier:'Beginner' });
 });

@@ -1,0 +1,29 @@
+# Full-score MIDI sources
+
+The following MIDI files were downloaded from the [Mutopia Project](https://www.mutopiaproject.org/). Each entry links to its source page, which identifies the underlying edition and license. These scores are used to generate a single-note laptop adaptation in the browser; the full original MIDI files are included for provenance and future piano support.
+
+| Asset | Source | License shown by Mutopia |
+| --- | --- | --- |
+| `moonlight-first-movement.mid` | [Beethoven, Sonata No. 14, Op. 27 No. 2, movement I](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=276) | [Creative Commons Attribution-ShareAlike 2.5](https://creativecommons.org/licenses/by-sa/2.5/); maintained by Stewart Holmes, from Berners (1908), edited by A. Winterberger |
+| `fur-elise.mid` | [Beethoven, Für Elise](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=931) | Public Domain |
+| `entertainer.mid` | [Joplin, The Entertainer](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=263) | Public Domain |
+| `maple-leaf-rag.mid` | [Joplin, Maple Leaf Rag](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=23) | Public Domain |
+| `elite-syncopations.mid` | [Joplin, Elite Syncopations](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=1540) | Public Domain |
+| `eugenia.mid` | [Joplin, Eugenia](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=496) | Public Domain |
+| `magnetic-rag.mid` | [Joplin, Magnetic Rag](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=441) | Public Domain |
+| `easy-winners.mid` | [Joplin, The Easy Winners](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=352) | Public Domain |
+| `pineapple-rag.mid` | [Joplin, Pineapple Rag](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=1899) | Public Domain |
+| `clair-de-lune.mid` | [Debussy, Clair de Lune](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=1778) | Public Domain |
+| `arabesque-one.mid` | [Debussy, Première Arabesque](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=1777) | Public Domain |
+| `invention-two.mid` | [Bach, Invention No. 2](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=58) | Public Domain |
+| `invention-three.mid` | [Bach, Invention No. 3](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=70) | Public Domain |
+| `invention-four.mid` | [Bach, Invention No. 4](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=67) | Public Domain |
+| `invention-five.mid` | [Bach, Invention No. 5](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=55) | Public Domain |
+| `invention-seven.mid` | [Bach, Invention No. 7](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=73) | Public Domain |
+| `prelude-e-minor.mid` | [Chopin, Prelude in E minor, Op. 28 No. 4](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=468) | Public Domain |
+| `minuet-b-flat.mid` | [Bach, Minuet in B♭ major](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=1014) | Public Domain |
+| `minuet-a-minor.mid` | [Bach, Minuet in A minor](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=1612) | Public Domain |
+| `minuet-c-minor.mid` | [Bach, Minuet in C minor](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=1613) | Public Domain |
+| `musette.mid` | [Bach, Musette](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=79) | Public Domain |
+
+The MIT software license in the repository root does **not** replace the separate CC BY-SA 2.5 license for `moonlight-first-movement.mid` or its derived arrangement. Preserve its attribution and ShareAlike terms when redistributing that score data.

@@ -1,7 +1,14 @@
 import { nameMidi } from './music.js';
 
-export function buildTimeline(song, speed = 1, octave = 0) {
+export function buildTimeline(song, speed = 1, octave = 0, mode = 'free') {
   if (!(speed > 0)) throw new Error('Speed must be positive');
+  if (song.events) {
+    const source = mode === 'learning' ? song.events.filter(note => note.start < (song.learningSeconds || 40)) : song.events;
+    return source.map((note,index) => ({
+      index, midi: note.midi + octave * 12, start: note.start / speed,
+      duration: note.duration / speed, state: 'pending'
+    }));
+  }
   let time = 0;
   const secondsPerBeat = 60 / (song.bpm * speed);
   return song.notes.map((note, index) => {
@@ -16,7 +23,8 @@ export class PracticeSession {
   constructor(song, mode = 'free', speed = 1, octave = 0) {
     this.song = song;
     this.mode = mode;
-    this.events = buildTimeline(song, speed, octave);
+    this.events = buildTimeline(song, speed, octave, mode);
+    this.endTime = this.events.reduce((end,event) => Math.max(end,event.start + event.duration),0);
     this.elapsed = 0;
     this.waiting = null;
     this.errors = 0;
@@ -74,8 +82,7 @@ export class PracticeSession {
   }
 
   checkFinished() {
-    const end = this.events.at(-1)?.start + this.events.at(-1)?.duration || 0;
-    if (this.elapsed >= end && this.events.every(event => event.midi === null || event.state !== 'pending')) {
+    if (this.elapsed >= this.endTime && this.events.every(event => event.midi === null || event.state !== 'pending')) {
       this.finished = true;
       this.playing = false;
     }
@@ -99,7 +106,10 @@ export function addResult(progress, song, mode, accuracy) {
   entry.last = accuracy;
   entry.plays++;
   entry.difficulty = song.difficulty;
+  entry.title = song.title || entry.title || song.id;
+  entry.composer = song.composer || entry.composer || '';
   entry.lastMode = mode;
+  entry.lastPlayed = new Date().toISOString();
   next.songs[song.id] = entry;
   next.totalPlays++;
   return next;

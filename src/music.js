@@ -43,6 +43,19 @@ export function keyPosition(midi, octave = 0) {
   return null;
 }
 
+// Three octaves of correctly spaced piano keys, centered on the laptop map.
+export function wideKeyPosition(midi, octave = 0) {
+  const base = midi - octave * 12;
+  if (base < 48 || base > 83) return null; // C3 through B5
+  const whiteClasses = [0,2,4,5,7,9,11];
+  const octaveIndex = Math.floor((base - 48) / 12);
+  const pitchClass = base % 12;
+  const whiteWithinOctave = whiteClasses.indexOf(pitchClass);
+  if (whiteWithinOctave >= 0) return (octaveIndex * 7 + whiteWithinOctave + .5) / 21 * 100;
+  const precedingWhites = whiteClasses.filter(value => value < pitchClass).length;
+  return (octaveIndex * 7 + precedingWhites) / 21 * 100;
+}
+
 export function frequency(midi) {
   return 440 * 2 ** ((midi - 69) / 12);
 }

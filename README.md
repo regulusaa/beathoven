@@ -1,33 +1,49 @@
 # Beathoven
 
-A free, open-source piano learning app for the laptop keyboard you already own. Play it at [regulusaa.github.io/beathoven](https://regulusaa.github.io/beathoven/) or run it locally.
+A free, open-source piano learning app for the laptop keyboard you already own. [Play Beathoven](https://regulusaa.github.io/beathoven/) or run it locally.
 
 ## Play
 
-1. Choose a song from the 25-piece starter library.
-2. Pick **Free mode** for uninterrupted play and an accuracy score, or **Learning mode** to pause on a missed or wrong note until you play it correctly.
-3. Press notes as their falling bars reach the glowing line. A longer bar means hold the key longer.
+1. Choose from **46 pieces**: 21 complete-length classical piano scores and 25 short beginner studies or traditional melodies. The library labels full pieces and short studies clearly.
+2. Pick **Free mode** to play to the end without stopping, or **Learning mode** to practice the opening of a full piece (the first 40 seconds of note onsets). Learning mode rewinds after a missed note and waits until you play it correctly.
+3. Press each key when its colored bar reaches the glowing line. A longer bar shows a longer hold. The black note field has no vertical guide grid, and a three-octave piano is shown below it.
 
-The white keys are on `A S D F G H J K L`, moving from C4 to D5. Black keys sit between them on `W E T Y U O P`. The on-screen piano shows the same geometry. Use the octave buttons or Up/Down arrows to shift the keyboard **and song together**. The initial beat count gives you time to prepare. Click or tap the on-screen keys to practice without a physical keyboard.
+The laptop's `A S D F G H J K L` keys map left to right to white piano keys C4–D5. `W E T Y U O P` are the black keys between them. On the on-screen piano, those laptop keys are labeled; the other keys can be clicked or tapped. Up/Down or the octave buttons shift the song and laptop map together. Speed can be set from 50% to 125%.
 
-There are four difficulty levels, song search, 50–125% speed controls, a sound toggle, and restart/pause controls. Sound is made in the browser with Web Audio; no recordings or external audio files are required. Progress is saved in this browser's local storage. Your rank is based on each unique song's star difficulty and best accuracy: `points = sum(stars × best accuracy)`. Song and play counts are also shown. Clearing browser storage clears progress. There are no accounts or online leaderboards in this version.
+### Full-score adaptation
 
-**Accuracy:** Free mode counts notes struck from 0.25 seconds early to 1 second late. Learning mode scores `notes / (notes + retries)`, where a missed or wrong note adds a retry. Bar length teaches hold duration; release timing is not yet included in accuracy. The library is currently melody only, without chords or accompaniment.
+The complete MIDI scores often contain simultaneous notes across several octaves. Beathoven creates a **single-note laptop adaptation** by keeping the highest note at each onset and moving that note by octaves into the C4–D5 laptop range. It keeps the source's timing and complete piece length. It is a practice arrangement, not a reproduction of the original two-hand piano part. The [original MIDI scores](assets/SOURCES.md) are also in the repository. A future physical-piano mode could use them without this reduction.
+
+### Bring your own MIDI
+
+Use **Import MIDI** to play a `.mid` or `.midi` file you have permission to use. It is parsed in your browser and not sent to a server. Free mode keeps the complete imported piece length; Learning mode takes an opening excerpt. The imported file itself is not saved to the catalog, so import it again after reloading. This is how you can privately play modern copyrighted music you own without Beathoven publishing its note data.
+
+Spotify offline downloads are audio for playback inside Spotify, not MIDI note files. Look for an authorized `.mid` or `.midi` download from a creator or publisher, or transcribe a personal practice copy in a notation program or digital audio workstation that exports MIDI. To publish a modern piece in Beathoven's public catalog, obtain a license that allows redistribution of its note data.
+
+## Profiles and progress
+
+The [profile page](https://regulusaa.github.io/beathoven/profile.html) lets you create a profile with a name and PIN, sign in, add a profile picture, and see rank, points, total plays, and each song's best accuracy. Progress saves automatically on this browser after each completed piece. An unfinished built-in piece is checkpointed during practice and can be resumed from the profile page. Existing guest progress from the earlier version moves into the first new profile.
+
+**No server is needed for this device-local version.** Profiles and pictures are stored in this browser's local storage. Your PIN is hashed locally, but this is not a security boundary against someone who can access or alter this computer's browser data. Profiles do not sync between browsers or devices. Clearing site data removes them. Secure cross-device accounts would need a backend service.
+
+Ranking points equal the sum of `difficulty stars × best accuracy` for each unique piece. Free mode counts notes struck from 0.25 seconds early to 1 second late. Learning mode scores `notes / (notes + retries)`, where a missed or wrong note adds a retry. Bar length teaches hold duration; release timing is not yet included in accuracy. The score does not yet evaluate chords or two-hand technique.
 
 ## Song rights
 
-The library consists of original teaching exercises and simplified, newly entered arrangements of traditional or public-domain compositions. It does not contain copyrighted audio recordings, commercial scores, or downloaded song files. Original exercise note data and arrangements are provided under the repository's MIT license. Titles of familiar melodies identify the underlying public-domain works, not a particular copyrighted edition. Additions should follow the same rule and document their source.
+The 25 short pieces are original exercises or simplified arrangements of traditional/public-domain compositions. The 21 MIDI scores come from the [Mutopia Project](https://www.mutopiaproject.org/), with individual source and license details in [assets/SOURCES.md](assets/SOURCES.md). The Moonlight Sonata MIDI is separately licensed under **CC BY-SA 2.5**; the repository's MIT software license does not supersede that score license. Other bundled MIDI files are marked public domain by Mutopia.
+
+**Howl's Moving Castle** (Joe Hisaishi's “Merry-Go-Round of Life”) and Kensuke Ushio's **“In the Pool”** are modern copyrighted works. Their note data is not bundled in this public repository. The private MIDI importer can play personal copies the user is allowed to use. A redistribution license would be needed to include those scores in the public catalog.
 
 ## Run locally
 
-There are no package dependencies or build step. Serve the repository root with any static HTTP server:
+There are no runtime package dependencies or build step. Serve the repository root with any static HTTP server:
 
 ```sh
 python3 -m http.server 4173
 ```
 
-Then open `http://localhost:4173`. Run the small timing and catalog tests with `npm test` (Node.js 20+).
+Open `http://localhost:4173`. Run tests with `npm test` (Node.js 20+).
 
 ## Contribute
 
-The app uses plain HTML, CSS, and JavaScript modules. Song entries live in `src/songs.js`, timing and scoring in `src/practice.js`, keyboard mapping in `src/music.js`, and audio in `src/audio.js`. Keep new arrangements within the displayed keyboard range (C4–D5 before octave shifting), and run `npm test` before opening a pull request.
+The app uses plain HTML, CSS, and JavaScript modules. Short pieces are in `src/songs.js`, full-score metadata in `src/full-scores.js`, MIDI parsing in `src/midi.js`, timing and scoring in `src/practice.js`, and local profiles in `src/profiles.js`. New bundled scores must have a clear redistribution license and source entry in `assets/SOURCES.md`.
