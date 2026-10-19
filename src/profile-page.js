@@ -1,5 +1,5 @@
 import { SONGS } from './songs.js';
-import { FULL_SCORES } from './full-scores.js';
+import { FULL_SCORES } from './full-scores.js?v=20261019-long-scores';
 import { rankSummary } from './practice.js';
 import { listProfiles, currentProfile, createProfile, signIn, signOut, updateProfile, imageToAvatar } from './profiles.js';
 

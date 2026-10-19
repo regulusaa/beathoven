@@ -46,4 +46,4 @@ Open `http://localhost:4173`. Run tests with `npm test` (Node.js 20+).
 
 ## Contribute
 
-The app uses plain HTML, CSS, and JavaScript modules. Short pieces are in `src/songs.js`, full-score metadata in `src/full-scores.js`, MIDI parsing in `src/midi.js`, timing and scoring in `src/practice.js`, and local profiles in `src/profiles.js`. New bundled scores must have a clear redistribution license and source entry in `assets/SOURCES.md`.
+The app uses plain HTML, CSS, and JavaScript modules. Short pieces are in `src/songs.js`, full-score metadata in `src/full-scores.js`, MIDI parsing in `src/midi.js`, timing and scoring in `src/practice.js`, and local profiles in `src/profiles.js`. New bundled scores must have a clear redistribution license and source entry in `assets/SOURCES.md`. When publishing changed app or catalog modules, bump their matching `?v=` query strings in the HTML and module imports so browsers fetch the new version immediately.

@@ -1,5 +1,5 @@
 import { SONGS } from './songs.js';
-import { FULL_SCORES, FREE_SCORES } from './full-scores.js';
+import { FULL_SCORES, FREE_SCORES } from './full-scores.js?v=20261019-long-scores';
 import { keyboardMidi, keyForMidi, wideKeyPosition, midiName } from './music.js';
 import { PracticeSession, addResult, rankSummary, buildTimeline } from './practice.js';
 import { PianoAudio } from './audio.js';
