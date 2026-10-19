@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0d16">
+  <meta name="description" content="Learn piano on the laptop keyboard you already have. Free songs, guided practice, and a spatial key map.">
+  <title>Beathoven — piano starts here</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="Beathoven home"><span class="brand-mark">♮</span><span>beat<span class="brand-strong">hoven</span><small>PIANO STARTS HERE</small></span></a>
+      <div class="top-links"><span class="free-pill"><span></span> FREE FOREVER</span><button id="help-button" class="text-button" type="button">How to play <span aria-hidden="true">↗</span></button></div>
+    </header>
+    <div class="workspace">
+      <aside class="library panel" aria-label="Song library">
+        <div class="section-eyebrow">EXPLORE</div>
+        <div class="library-heading"><h1>Song library</h1><span id="song-count" class="count-pill"></span></div>
+        <p class="muted library-intro">Pick a piece and make it yours.</p>
+        <label class="search-wrap"><span aria-hidden="true">⌕</span><input id="song-search" type="search" placeholder="Search songs" aria-label="Search songs"></label>
+        <div id="difficulty-filters" class="filter-row" aria-label="Filter songs by difficulty"></div>
+        <div id="song-list" class="song-list"></div>
+        <div class="library-footer"><span class="sparkle">✦</span><div><strong>Your pace, your piano</strong><p>Every song works with your laptop keys. No gear required.</p></div></div>
+      </aside>
+
+      <main class="main-area">
+        <div class="song-topline"><div><div class="section-eyebrow">NOW PLAYING <span class="eyebrow-line"></span> <span id="song-difficulty-label">★ BEGINNER</span></div><h2 id="current-title">First Steps</h2><p id="current-composer" class="muted">Original exercise</p></div><div class="song-nav"><button id="previous-song" class="icon-button" type="button" aria-label="Previous song">←</button><button id="next-song" class="icon-button" type="button" aria-label="Next song">→</button></div></div>
+
+        <div class="toolbar"><div class="mode-switch" role="group" aria-label="Practice mode"><button id="free-mode" class="mode active" type="button" aria-pressed="true"><span>▶</span> Free mode</button><button id="learning-mode" class="mode" type="button" aria-pressed="false"><span>✧</span> Learning mode</button></div><div class="toolbar-right"><label class="tempo-control">SPEED <select id="speed-select" aria-label="Playback speed"><option value="0.5">50%</option><option value="0.75">75%</option><option value="1" selected>100%</option><option value="1.25">125%</option></select></label><button id="sound-button" class="icon-button sound-button" type="button" aria-label="Mute sound" title="Mute sound">♪</button></div></div>
+
+        <section class="stage-card" aria-label="Falling notes and piano keyboard">
+          <div class="stage-header"><div class="stage-label"><span class="live-dot"></span><span id="stage-status">READY TO PLAY</span></div><div class="stage-progress"><span id="note-progress">0 / 0 NOTES</span><div class="progress-track"><div id="progress-fill"></div></div></div></div>
+          <div id="note-stage" class="note-stage"><div id="lane-grid" class="lane-grid"></div><div id="falling-notes" class="falling-notes"></div><div class="hit-line"><span></span><strong>PLAY HERE</strong><span></span></div><div id="stage-overlay" class="stage-overlay"><div class="overlay-icon">♫</div><strong>Ready when you are.</strong><span>Follow the notes down to your keys.</span><button id="start-button" class="primary-button" type="button">Start playing <span>→</span></button></div><div id="feedback" class="feedback" aria-live="polite"></div></div>
+          <div id="piano-keyboard" class="piano-keyboard" aria-label="Piano key map"></div>
+        </section>
+
+        <div class="below-stage"><div class="hint"><span class="hint-icon">⌨</span><span><strong>Use your keyboard like a piano.</strong> Home row = white keys. Row above = black keys.</span></div><div class="transport"><button id="restart-button" class="small-button" type="button">↺ <span>Restart</span></button><button id="pause-button" class="small-button" type="button" disabled>Ⅱ <span>Pause</span></button></div></div>
+      </main>
+
+      <aside class="right-panel panel" aria-label="Practice information">
+        <div class="section-eyebrow">YOUR STUDIO</div>
+        <div class="rank-card"><div class="rank-label">CURRENT RANK</div><div class="rank-emblem">✦</div><h3 id="rank-tier">Beginner</h3><p id="rank-points">0 points</p><div class="rank-stats"><div><strong id="unique-songs">0</strong><span>SONGS</span></div><div><strong id="total-plays">0</strong><span>PLAYS</span></div></div></div>
+        <div class="tip-card"><div class="tip-top"><span>✧</span><span>THE PRACTICE TIP</span></div><h3 id="tip-title">Find your home position</h3><p id="tip-copy">Rest your left hand near A–F and your right hand near G–L. The keys rise in pitch from left to right, just like a piano.</p></div>
+        <div class="session-card"><div class="section-eyebrow">SESSION</div><div class="session-row"><span>Mode</span><strong id="session-mode">Free mode</strong></div><div class="session-row"><span>Octave</span><strong id="octave-label">C4–D5</strong></div><div class="session-row"><span>Best accuracy</span><strong id="best-accuracy">—</strong></div><div class="octave-controls"><span>SHIFT OCTAVE</span><div><button id="octave-down" type="button" aria-label="Shift down one octave">−</button><button id="octave-up" type="button" aria-label="Shift up one octave">+</button></div></div><p class="octave-note">Shifts the keyboard and song together.</p></div>
+      </aside>
+    </div>
+    <footer class="footer"><span>Made for curious fingers.</span><span>Open source · Free to play · <a href="https://github.com/regulusaa/beathoven" target="_blank" rel="noopener">GitHub ↗</a></span></footer>
+  </div>
+
+  <dialog id="help-dialog" class="modal"><div class="modal-header"><div><div class="section-eyebrow">QUICK START</div><h2>Your laptop is the piano.</h2></div><button id="close-help" class="icon-button" type="button" aria-label="Close help">×</button></div><p>Put your fingers on <strong>A S D F G H J K L</strong>. Those keys move left to right through the white piano keys. The black keys sit between them on <strong>W E T Y U O P</strong>.</p><div class="help-grid"><div><span>01</span><strong>Choose a song</strong><p>Pick from the library, then choose Free or Learning mode.</p></div><div><span>02</span><strong>Follow the bars</strong><p>Press a note as its colored bar reaches the glowing line. Longer bars mean longer holds.</p></div><div><span>03</span><strong>Learn at your pace</strong><p>Learning mode stops on a missed or wrong note until you play it correctly. Free mode keeps going.</p></div></div><p class="help-footnote">Use the octave buttons to move the whole song and keyboard together. Click or tap piano keys to hear them too. Audio starts after your first interaction.</p><button id="got-it" class="primary-button" type="button">Got it <span>→</span></button></dialog>
+  <dialog id="result-dialog" class="modal result-modal"><div class="section-eyebrow">SONG COMPLETE</div><div class="result-glow">✦</div><h2 id="result-title">Nicely played.</h2><div id="result-accuracy" class="result-accuracy">100%</div><p id="result-detail"></p><div class="result-actions"><button id="result-retry" class="primary-button" type="button">Play again <span>↺</span></button><button id="result-next" class="small-button" type="button">Next song →</button></div></dialog>
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>
