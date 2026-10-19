@@ -9,12 +9,14 @@ import { buildTimeline, PracticeSession } from '../src/practice.js';
 import { keyForMidi, wideKeyPosition } from '../src/music.js';
 
 test('every bundled full score loads, parses, and adapts to playable laptop notes', () => {
-  assert.ok(FULL_SCORES.length >= 20);
-  assert.ok(FULL_SCORES.length + SONGS.length >= 45);
+  assert.ok(FULL_SCORES.length >= 27);
+  assert.ok(FULL_SCORES.length + SONGS.length >= 52);
+  assert.ok(FULL_SCORES.some(song => song.difficulty === 1), 'Free mode needs a beginner full score');
   for (const song of FULL_SCORES) {
     const path = fileURLToPath(new URL(`../${song.midiUrl.slice(2)}`,import.meta.url));
     const parsed = parseMidi(readFileSync(path));
     const adapted = adaptMidiForLaptop(parsed);
+    assert.ok(Math.abs(song.duration - parsed.duration) <= 1, `${song.title} has an incorrect catalog duration`);
     assert.ok(parsed.notes.length > 0, `${song.title} is empty`);
     assert.ok(adapted.duration >= 20, `${song.title} has a suspiciously short duration`);
     assert.ok(adapted.notes.every(note => keyForMidi(note.midi)), `${song.title} has unreachable notes`);

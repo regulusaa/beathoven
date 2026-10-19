@@ -4,7 +4,7 @@ A free, open-source piano learning app for the laptop keyboard you already own. 
 
 ## Play
 
-1. Choose from **21 complete-length classical piano scores in Free mode**. Learning mode offers those scores as opening excerpts plus 25 short beginner studies or traditional melodies. The library labels full pieces and short studies clearly.
+1. Choose from **27 complete classical piano scores in Free mode**. Learning mode offers those scores as opening excerpts plus 25 short beginner studies or traditional melodies. The library labels full pieces and short studies clearly.
 2. Pick **Free mode** to play a full score to the end without stopping, or **Learning mode** to practice the opening of a full piece (the first 40 seconds of note onsets) or a short study. Learning mode rewinds after a missed note and waits until you play it correctly.
 3. Press each key when its colored bar reaches the glowing line. A longer bar shows a longer hold. The black note field has no vertical guide grid, and a three-octave piano is shown below it.
 
@@ -30,7 +30,7 @@ Ranking points equal the sum of `difficulty stars × best accuracy` for each uni
 
 ## Song rights
 
-The 25 short pieces are original exercises or simplified arrangements of traditional/public-domain compositions. The 21 MIDI scores come from the [Mutopia Project](https://www.mutopiaproject.org/), with individual source and license details in [assets/SOURCES.md](assets/SOURCES.md). The Moonlight Sonata MIDI is separately licensed under **CC BY-SA 2.5**; the repository's MIT software license does not supersede that score license. Other bundled MIDI files are marked public domain by Mutopia.
+The 25 short pieces are original exercises or simplified arrangements of traditional/public-domain compositions. The 27 MIDI scores come from the [Mutopia Project](https://www.mutopiaproject.org/), with individual source and license details in [assets/SOURCES.md](assets/SOURCES.md). The Moonlight Sonata MIDI is separately licensed under **CC BY-SA 2.5**; the repository's MIT software license does not supersede that score license. Other bundled MIDI files are marked public domain by Mutopia.
 
 **Howl's Moving Castle** (Joe Hisaishi's “Merry-Go-Round of Life”) and Kensuke Ushio's **“In the Pool”** are modern copyrighted works. Their note data is not bundled in this public repository. The private MIDI importer can play personal copies the user is allowed to use. A redistribution license would be needed to include those scores in the public catalog. [Joe Hisaishi's publisher says arrangements require permission](https://joehisaishi.com/category/uncategorized/).
 

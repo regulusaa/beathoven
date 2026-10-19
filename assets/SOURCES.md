@@ -4,6 +4,12 @@ The following MIDI files were downloaded from the [Mutopia Project](https://www.
 
 | Asset | Source | License shown by Mutopia |
 | --- | --- | --- |
+| `gymnopedie-one.mid` | [Satie, Gymnopédie No. 1](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=37) | Public Domain |
+| `gymnopedie-two.mid` | [Satie, Gymnopédie No. 2](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=38) | Public Domain |
+| `gymnopedie-three.mid` | [Satie, Gymnopédie No. 3](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=39) | Public Domain |
+| `minuet-g-major.mid` | [Minuet in G major, BWV Anh. 114](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=75), attributed to Christian Petzold | Public Domain |
+| `minuet-g-minor.mid` | [Minuet in G minor, BWV Anh. 115](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=76), attributed to Christian Petzold | Public Domain |
+| `sonatina-aylesford.mid` | [Handel, Sonatina from the Aylesford Pieces](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=169) | Public Domain |
 | `moonlight-first-movement.mid` | [Beethoven, Sonata No. 14, Op. 27 No. 2, movement I](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=276) | [Creative Commons Attribution-ShareAlike 2.5](https://creativecommons.org/licenses/by-sa/2.5/); maintained by Stewart Holmes, from Berners (1908), edited by A. Winterberger |
 | `fur-elise.mid` | [Beethoven, Für Elise](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=931) | Public Domain |
 | `entertainer.mid` | [Joplin, The Entertainer](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=263) | Public Domain |
