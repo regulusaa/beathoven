@@ -7,6 +7,14 @@ The following MIDI files were downloaded from the [Mutopia Project](https://www.
 | `gymnopedie-one.mid` | [Satie, Gymnopédie No. 1](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=37) | Public Domain |
 | `gymnopedie-two.mid` | [Satie, Gymnopédie No. 2](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=38) | Public Domain |
 | `gymnopedie-three.mid` | [Satie, Gymnopédie No. 3](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=39) | Public Domain |
+| `gnossienne-one.mid` | [Satie, Gnossienne No. 1](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=2035), typeset by Knute Snortum | [Creative Commons Attribution-ShareAlike 4.0](https://creativecommons.org/licenses/by-sa/4.0/) |
+| `gnossienne-two.mid` | [Satie, Gnossienne No. 2](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=2130), typeset by Frédéric Duperray | [Creative Commons Attribution-ShareAlike 4.0](https://creativecommons.org/licenses/by-sa/4.0/) |
+| `gnossienne-three.mid` | [Satie, Gnossienne No. 3](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=2131), typeset by Frédéric Duperray | [Creative Commons Attribution-ShareAlike 4.0](https://creativecommons.org/licenses/by-sa/4.0/) |
+| `traumerei.mid` | [Schumann, Träumerei](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=504) | Public Domain |
+| `sonata-facile-one.mid` | [Mozart, Sonata Facile, movement I](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=998), typeset by Alejandro Sierra | [Creative Commons Attribution-ShareAlike 3.0](https://creativecommons.org/licenses/by-sa/3.0/) |
+| `sonata-facile-two.mid` | [Mozart, Sonata Facile, movement II](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=1007), typeset by Alejandro Sierra | [Creative Commons Attribution-ShareAlike 3.0](https://creativecommons.org/licenses/by-sa/3.0/) |
+| `sonata-facile-three.mid` | [Mozart, Sonata Facile, movement III](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=1027), typeset by Alejandro Sierra | [Creative Commons Attribution-ShareAlike 3.0](https://creativecommons.org/licenses/by-sa/3.0/) |
+| `seven-variations.mid` | [Beethoven, Seven Variations on God Save the King](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=1024) | Public Domain |
 | `minuet-g-major.mid` | [Minuet in G major, BWV Anh. 114](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=75), attributed to Christian Petzold | Public Domain |
 | `minuet-g-minor.mid` | [Minuet in G minor, BWV Anh. 115](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=76), attributed to Christian Petzold | Public Domain |
 | `sonatina-aylesford.mid` | [Handel, Sonatina from the Aylesford Pieces](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=169) | Public Domain |
@@ -32,4 +40,4 @@ The following MIDI files were downloaded from the [Mutopia Project](https://www.
 | `minuet-c-minor.mid` | [Bach, Minuet in C minor](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=1613) | Public Domain |
 | `musette.mid` | [Bach, Musette](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=79) | Public Domain |
 
-The MIT software license in the repository root does **not** replace the separate CC BY-SA 2.5 license for `moonlight-first-movement.mid` or its derived arrangement. Preserve its attribution and ShareAlike terms when redistributing that score data.
+The MIT software license in the repository root does **not** replace the separate CC BY-SA licenses for the Moonlight Sonata, Gnossiennes, or Sonata Facile MIDI files and their derived arrangements. The browser changes the original scores into single-note laptop exercises by keeping the highest note at each onset and folding it into the mapped key range. Preserve each score's attribution and ShareAlike terms when redistributing its score data.

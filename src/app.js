@@ -1,5 +1,5 @@
 import { SONGS } from './songs.js';
-import { FULL_SCORES } from './full-scores.js';
+import { FULL_SCORES, FREE_SCORES } from './full-scores.js';
 import { keyboardMidi, keyForMidi, wideKeyPosition, midiName } from './music.js';
 import { PracticeSession, addResult, rankSummary, buildTimeline } from './practice.js';
 import { PianoAudio } from './audio.js';
@@ -21,11 +21,11 @@ const els = {
 };
 const audio = new PianoAudio();
 const imports = [];
-const studyIds = new Set(SONGS.map(song => song.id));
-const isStudy = song => studyIds.has(song.id);
+const learningOnlyIds = new Set([...SONGS,...FULL_SCORES.filter(song => !FREE_SCORES.includes(song))].map(song => song.id));
+const isLearningOnly = song => learningOnlyIds.has(song.id);
 const library = () => [...FULL_SCORES, ...SONGS, ...imports];
-const playableLibrary = () => mode === 'free' ? [...FULL_SCORES, ...imports] : library();
-let selected = FULL_SCORES[0];
+const playableLibrary = () => mode === 'free' ? [...FREE_SCORES, ...imports] : library();
+let selected = FREE_SCORES[0];
 let lastFreeSong = selected;
 let mode = 'free';
 let speed = 1;
@@ -86,6 +86,15 @@ function formatDuration(seconds) {
   if (!Number.isFinite(seconds)) return '';
   const total = Math.max(0, Math.round(seconds));
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
+function scoreKindLabel(song, loading = false) {
+  if (song.kind !== 'full' && song.kind !== 'imported') return 'SHORT STUDY';
+  const type = song.kind === 'full' ? 'FULL PIECE' : 'YOUR MIDI';
+  if (loading && song.kind === 'full' && !song.events) return `${type} · loading…`;
+  const total = formatDuration(song.duration);
+  if (mode === 'learning') return `LEARNING PRACTICE · ${formatDuration(Math.min(song.duration, song.learningSeconds || 40))} of ${total}`;
+  return `${type} · ${total}`;
 }
 
 async function ensureScore(song) {
@@ -299,22 +308,22 @@ function resetSession() {
   renderNotes(); renderProgress(); updateTargetKey();
 }
 
-async function selectSong(song) {
-  if (mode === 'free' && isStudy(song)) return;
+async function selectSong(song,{allowShortFreeResume = false} = {}) {
+  if (mode === 'free' && isLearningOnly(song) && !allowShortFreeResume) return;
   const serial = ++loadingSerial;
   selected = song;
-  if (!isStudy(song)) lastFreeSong = song;
+  if (!isLearningOnly(song)) lastFreeSong = song;
   els.title.textContent = song.title;
   els.composer.textContent = song.composer;
   els.difficulty.textContent = `${'★'.repeat(song.difficulty)} ${['','BEGINNER','EASY','INTERMEDIATE','ADVANCED'][song.difficulty]}`;
   els.source.hidden = !song.sourceUrl;
   if (song.sourceUrl) els.source.href = song.sourceUrl;
-  els.kind.textContent = song.kind === 'full' ? 'FULL PIECE · loading…' : song.kind === 'imported' ? 'YOUR MIDI · FULL LENGTH' : 'SHORT STUDY';
+  els.kind.textContent = scoreKindLabel(song,true);
   resetSession(); updateRank();
   try {
     await ensureScore(song);
     if (serial !== loadingSerial) return;
-    els.kind.textContent = song.kind === 'full' ? `FULL PIECE · ${formatDuration(song.duration)}` : song.kind === 'imported' ? `YOUR MIDI · ${formatDuration(song.duration)}` : 'SHORT STUDY';
+    els.kind.textContent = scoreKindLabel(song);
     resetSession(); updateRank();
   } catch(error) {
     if (serial !== loadingSerial) return;
@@ -327,7 +336,7 @@ async function selectSong(song) {
 
 async function changeSong(direction) {
   const songs = playableLibrary(); const index = songs.findIndex(song => song.id === selected.id);
-  await selectSong(songs[(index + direction + songs.length) % songs.length]);
+  await selectSong(songs[index < 0 ? (direction > 0 ? 0 : songs.length - 1) : (index + direction + songs.length) % songs.length]);
 }
 
 async function startSession() {
@@ -476,7 +485,7 @@ async function resumeCheckpoint() {
   $('#speed-select').value = String(speed);
   updateModeButtons();
   els.octave.textContent = `${midiName(60 + octave * 12)}–${midiName(74 + octave * 12)}`;
-  renderKeyboard(); await selectSong(song);
+  renderKeyboard(); await selectSong(song,{allowShortFreeResume:true});
   session = new PracticeSession(selected,mode,speed,octave);
   if (saved.states?.length !== session.events.length) { session=null; resetSession(); return; }
   session.events.forEach((event,index) => { event.state = saved.states[index] === 'h' ? 'hit' : saved.states[index] === 'm' ? 'missed' : 'pending'; });
@@ -495,7 +504,8 @@ function updateModeButtons() {
     button.setAttribute('aria-pressed',String(name === mode));
   }
   els.mode.textContent = mode === 'free' ? 'Free mode' : 'Learning mode'; updateTip();
-  $('#library-intro').textContent = mode === 'free' ? 'Complete pieces from first note to last.' : 'Full-score excerpts and short studies.';
+  $('#library-intro').textContent = mode === 'free' ? 'Bundled pieces run at least one minute; your imports can vary.' : 'Full-score excerpts and short studies.';
+  els.kind.textContent = scoreKindLabel(selected,!selected.events);
 }
 
 function setMode(value) {
@@ -504,7 +514,7 @@ function setMode(value) {
   difficultyFilter = 0;
   els.search.value = '';
   renderFilters(); updateModeButtons();
-  if (mode === 'free' && isStudy(selected)) selectSong(lastFreeSong);
+  if (mode === 'free' && isLearningOnly(selected)) selectSong(lastFreeSong);
   else { resetSession(); updateRank(); }
 }
 
