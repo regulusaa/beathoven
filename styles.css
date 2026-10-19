@@ -29,6 +29,10 @@
 .import-button{border:0;background:none;color:#d3b8fb;font-size:11px;font-weight:800;padding:5px 0 0;text-align:left}
 .import-button:hover{text-decoration:underline}
 .rank-profile-link{display:block;padding-top:12px;color:#d5b5fa;font-size:11px;font-weight:800}
+.result-difficulty{min-height:26px;margin:14px 0 5px;color:#efd4a2;font-size:20px;line-height:1;letter-spacing:3px;font-weight:700;text-shadow:none;filter:none}
+.result-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.result-actions button{min-width:0;padding:10px 7px;font-size:10px;white-space:nowrap}
+.result-actions .primary-button span{margin-left:4px}
 .song-topline{min-height:95px}
 .primary-button:disabled{opacity:.45;cursor:wait}
 @media(max-width:760px){.library-footer{display:flex;margin-top:11px;padding-top:10px}.library-footer p{display:none}.song-topline{min-height:91px}.header-profile{padding-right:5px}.header-profile #header-profile-name{display:none}}

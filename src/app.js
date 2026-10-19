@@ -357,6 +357,9 @@ function finishSession() {
   saveProgressAndClearCheckpoint(); updateRank(); renderProgress();
   els.status.textContent = 'COMPLETE';
   $('#result-title').textContent = session.accuracy >= 90 ? 'Beautifully played.' : session.accuracy >= 60 ? 'Nice progress.' : 'Keep practicing.';
+  const difficulty = $('#result-difficulty');
+  difficulty.textContent = '★'.repeat(selected.difficulty);
+  difficulty.setAttribute('aria-label', `${selected.difficulty}-star song difficulty`);
   $('#result-accuracy').textContent = `${session.accuracy}%`;
   $('#result-detail').textContent = mode === 'free'
     ? `${session.hits} of ${session.total} notes played on time · ${selected.title}`
@@ -502,6 +505,13 @@ $('#close-help').addEventListener('click',() => $('#help-dialog').close());
 $('#got-it').addEventListener('click',() => $('#help-dialog').close());
 $('#result-retry').addEventListener('click',() => { session=null; startSession(); });
 $('#result-next').addEventListener('click',async () => { $('#result-dialog').close(); await changeSong(1); startSession(); });
+function exitResults() {
+  $('#result-dialog').close();
+  resetSession();
+  if (matchMedia('(max-width:760px)').matches) $('.library').scrollIntoView({behavior:'smooth',block:'start'});
+}
+$('#result-exit').addEventListener('click',exitResults);
+$('#result-dialog').addEventListener('cancel',event => { event.preventDefault(); exitResults(); });
 $('#import-midi').addEventListener('click',() => $('#midi-file').click());
 $('#midi-file').addEventListener('change',event => { importMidi(event.target.files[0]); event.target.value=''; });
 
