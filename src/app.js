@@ -1,9 +1,9 @@
-import { SONGS } from './songs.js';
-import { FULL_SCORES, FREE_SCORES } from './full-scores.js?v=20261019-long-scores';
+import { LEARNING_STEPS, MASTERY_ACCURACY, nextLearningStep } from './curriculum.js?v=20261020-mastery';
+import { FULL_SCORES, FREE_SCORES } from './full-scores.js?v=20261020-mastery';
 import { keyboardMidi, keyForMidi, wideKeyPosition, midiName } from './music.js';
-import { PracticeSession, addResult, rankSummary, buildTimeline } from './practice.js';
-import { PianoAudio } from './audio.js';
-import { parseMidi, adaptMidiForLaptop } from './midi.js';
+import { PracticeSession, addResult, rankSummary, buildTimeline } from './practice.js?v=20261020-mastery';
+import { PianoAudio } from './audio.js?v=20261020-mastery';
+import { parseMidi, adaptMidiForLaptop } from './midi.js?v=20261020-mastery';
 import { currentProfile, updateProfile } from './profiles.js';
 import { loadPersonalSongs, savePersonalSong } from './personal-songs.js';
 
@@ -11,7 +11,9 @@ const $ = selector => document.querySelector(selector);
 const els = {
   list: $('#song-list'), filters: $('#difficulty-filters'), search: $('#song-search'), count: $('#song-count'),
   title: $('#current-title'), composer: $('#current-composer'), difficulty: $('#song-difficulty-label'),
-  kind: $('#song-kind-label'), source: $('#score-source'),
+  kind: $('#song-kind-label'), bpm: $('#song-bpm'), sessionBpm: $('#session-bpm'), source: $('#score-source'),
+  lessonBanner: $('#lesson-banner'), lessonPhase: $('#lesson-phase'), lessonInstruction: $('#lesson-instruction'),
+  lessonTimer: $('#lesson-timer'),
   stage: $('#note-stage'), notes: $('#falling-notes'), keyboard: $('#piano-keyboard'),
   overlay: $('#stage-overlay'), start: $('#start-button'), status: $('#stage-status'), feedback: $('#feedback'),
   noteProgress: $('#note-progress'), progressFill: $('#progress-fill'), pause: $('#pause-button'),
@@ -21,10 +23,10 @@ const els = {
 };
 const audio = new PianoAudio();
 const imports = [];
-const learningOnlyIds = new Set([...SONGS,...FULL_SCORES.filter(song => !FREE_SCORES.includes(song))].map(song => song.id));
+const learningOnlyIds = new Set([...LEARNING_STEPS,...FULL_SCORES.filter(song => !FREE_SCORES.includes(song))].map(song => song.id));
 const isLearningOnly = song => learningOnlyIds.has(song.id);
-const library = () => [...FULL_SCORES, ...SONGS, ...imports];
-const playableLibrary = () => mode === 'free' ? [...FREE_SCORES, ...imports] : library();
+const library = () => [...FULL_SCORES, ...LEARNING_STEPS, ...imports];
+const playableLibrary = () => mode === 'free' ? [...FREE_SCORES, ...imports] : LEARNING_STEPS;
 let selected = FREE_SCORES[0];
 let lastFreeSong = selected;
 let mode = 'free';
@@ -88,12 +90,39 @@ function formatDuration(seconds) {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 }
 
+function durationForSong(song) {
+  return song.duration ?? (song.notes?.reduce((beats,note) => beats + note.beats,0) || 0) * 60 / song.bpm;
+}
+
+function formatBpm(song) {
+  if (song.untimed) return 'No timer';
+  if (!song.bpm) return 'BPM loading…';
+  const [low,high] = song.bpmRange || [song.bpm,song.bpm];
+  return high - low >= 5
+    ? `${Math.round(low * speed)}–${Math.round(high * speed)} BPM`
+    : `${Math.round(song.bpm * speed)} BPM`;
+}
+
+function renderTempo() {
+  els.bpm.textContent = formatBpm(selected);
+  els.sessionBpm.textContent = formatBpm(selected);
+}
+
+function renderLessonBanner() {
+  els.lessonBanner.hidden = mode !== 'learning';
+  els.lessonTimer.hidden = mode !== 'learning';
+  if (mode !== 'learning') return;
+  const step = LEARNING_STEPS.findIndex(item => item.id === selected.id) + 1;
+  els.lessonPhase.textContent = `Step ${step} of ${LEARNING_STEPS.length} · ${selected.phase || 'Slow song'}`;
+  els.lessonInstruction.textContent = selected.instruction || 'Follow the notes on the keyboard.';
+}
+
 function scoreKindLabel(song, loading = false) {
-  if (song.kind !== 'full' && song.kind !== 'imported') return 'SHORT STUDY';
+  if (song.kind === 'lesson') return song.untimed ? 'NOTE LESSON · NO TIMER' : 'TIMING LESSON';
+  if (song.kind === 'study') return `SLOW SONG · ${formatDuration(durationForSong(song))}`;
   const type = song.kind === 'full' ? 'FULL PIECE' : 'YOUR MIDI';
   if (loading && song.kind === 'full' && !song.events) return `${type} · loading…`;
   const total = formatDuration(song.duration);
-  if (mode === 'learning') return `LEARNING PRACTICE · ${formatDuration(Math.min(song.duration, song.learningSeconds || 40))} of ${total}`;
   return `${type} · ${total}`;
 }
 
@@ -106,7 +135,8 @@ async function ensureScore(song) {
       song.events = adaptation.notes;
       song.duration = adaptation.duration;
       song.sourceNoteCount = adaptation.sourceNoteCount;
-      song.learningSeconds = 40;
+      song.bpm = adaptation.bpm;
+      song.bpmRange = adaptation.bpmRange;
     });
   try { await song.loadPromise; }
   catch (error) { song.loadPromise = null; throw error; }
@@ -139,24 +169,29 @@ function renderLibrary() {
   const query = els.search.value.trim().toLowerCase();
   const songs = playableLibrary();
   const visible = songs.filter(song => (!difficultyFilter || song.difficulty === difficultyFilter) && `${song.title} ${song.composer}`.toLowerCase().includes(query));
-  els.count.textContent = `${songs.length} PIECES`;
+  els.count.textContent = `${songs.length} ${mode === 'learning' ? 'STEPS' : 'PIECES'}`;
+  $('#library-title').textContent = mode === 'learning' ? 'Learn piano' : 'Song library';
   els.list.replaceChildren();
   if (!visible.length) {
     const empty = document.createElement('p'); empty.className = 'muted';
-    empty.textContent = mode === 'free' ? 'No full pieces match. Try another search or switch to Learning mode for short studies.' : 'No pieces match that search.';
+    empty.textContent = mode === 'free' ? 'No full pieces match. Try another search.' : 'No lessons match that search.';
     els.list.append(empty); return;
   }
   for (const song of visible) {
     const button = document.createElement('button');
     button.type = 'button'; button.className = `song-item${song.id === selected.id ? ' active' : ''}`;
     button.setAttribute('aria-current', song.id === selected.id ? 'true' : 'false');
-    const art = document.createElement('span'); art.className = 'song-art'; art.textContent = song.kind === 'full' ? '♬' : '♫';
+    const art = document.createElement('span'); art.className = 'song-art'; art.textContent = song.kind === 'lesson' ? '♩' : song.kind === 'full' ? '♬' : '♫';
     const text = document.createElement('span'); text.className = 'song-text';
     const title = document.createElement('strong'); title.textContent = song.title;
     const detail = document.createElement('small');
-    const duration = song.duration ? formatDuration(song.duration) : song.kind === 'full' ? 'Full piece' : 'Short study';
-    const best = progress.songs[song.id]?.best;
-    detail.textContent = `${song.composer} · ${duration}${best === undefined ? '' : ` · ${best}% best`}`;
+    const duration = (song.duration || song.notes) ? formatDuration(durationForSong(song)) : 'Full piece';
+    const result = song.kind === 'lesson' ? progress.lessons?.[song.id] : progress.songs[song.id];
+    const best = result?.best;
+    const tempo = song.untimed ? 'No timer' : song.bpm ? `${song.bpm} BPM` : duration;
+    detail.textContent = mode === 'learning'
+      ? `${song.kind === 'lesson' ? song.phase : 'Slow song'} · ${tempo}${best === undefined ? '' : ` · ${best}% best`}`
+      : `${song.composer} · ${duration}${song.bpm ? ` · ${song.bpm} BPM` : ''}${best === undefined ? '' : ` · ${best}% best`}`;
     text.append(title, detail);
     const stars = document.createElement('span'); stars.className = 'song-stars'; stars.textContent = '★'.repeat(song.difficulty);
     button.append(art,text,stars);
@@ -193,6 +228,16 @@ function renderKeyboard() {
     attachPointer(element,midi); els.keyboard.append(element);
   }
   updateTargetKey();
+}
+
+function renderOctaveControls() {
+  const lessonAtMiddleC = mode === 'learning' && selected.kind === 'lesson';
+  els.octave.textContent = `${midiName(60 + octave * 12)}–${midiName(74 + octave * 12)}`;
+  $('#octave-down').disabled = lessonAtMiddleC || octave === -2;
+  $('#octave-up').disabled = lessonAtMiddleC || octave === 2;
+  $('.octave-note').textContent = lessonAtMiddleC
+    ? 'Note lessons stay at middle C so the key names match the instructions.'
+    : 'Shifts the keyboard and song together.';
 }
 
 function attachPointer(element,midi) {
@@ -270,7 +315,7 @@ function updateRank() {
   els.points.textContent = `${summary.points.toLocaleString()} points`;
   els.unique.textContent = summary.unique;
   els.plays.textContent = summary.totalPlays;
-  const best = progress.songs[selected.id]?.best;
+  const best = (selected.kind === 'lesson' ? progress.lessons?.[selected.id] : progress.songs[selected.id])?.best;
   els.best.textContent = best === undefined ? '—' : `${best}%`;
   renderLibrary();
 }
@@ -283,7 +328,7 @@ function updateTargetKey() {
 
 function updateTip() {
   const tips = mode === 'learning'
-    ? ['Practice the opening','Full pieces use an opening excerpt here. Learning mode waits on a missed note until you play the highlighted key.']
+    ? [selected.kind === 'lesson' ? selected.phase : 'Practice a slow song', selected.instruction || 'Learning mode waits for the correct note.']
     : ['Play the whole piece','Free mode runs from the first note to the last. Long piano scores are adapted to a single-note laptop line.'];
   els.tipTitle.textContent = tips[0]; els.tipCopy.textContent = tips[1];
 }
@@ -293,38 +338,69 @@ function showFeedback(message,bad = false) {
   clearTimeout(feedbackTimer); feedbackTimer = setTimeout(() => els.feedback.classList.remove('show'),1200);
 }
 
+function renderLessonTimer() {
+  if (mode !== 'learning') return;
+  if (session?.finished) { els.lessonTimer.textContent = 'STEP COMPLETE'; return; }
+  if (!session) {
+    els.lessonTimer.textContent = selected.untimed ? 'NO TIMER' : `${formatBpm(selected)} · READY`;
+    return;
+  }
+  const target = session.target;
+  if (!target) { els.lessonTimer.textContent = 'LAST NOTE DONE'; return; }
+  const key = keyForMidi(target.midi,octave)?.toUpperCase();
+  const note = `${midiName(target.midi)}${key ? ` (${key})` : ''}`;
+  if (selected.untimed || session.waiting !== null) {
+    els.lessonTimer.textContent = `PLAY ${note}`;
+  } else if (session.elapsed < 0) {
+    els.lessonTimer.textContent = `START IN ${Math.max(0,-session.elapsed).toFixed(1)}s`;
+  } else {
+    const remaining = target.start - session.elapsed;
+    els.lessonTimer.textContent = remaining > .05 ? `${note} IN ${remaining.toFixed(1)}s` : `PLAY ${note} NOW`;
+  }
+}
+
 function resetSession() {
   audio.stopAll(); heldKeys.clear();
   for (const element of els.keyboard.querySelectorAll('.pressed')) element.classList.remove('pressed');
   session = null; paused = false; resultSaved = false;
   preview = selected.events || selected.notes ? buildTimeline(selected,speed,octave,mode) : [];
   els.overlay.hidden = false;
-  els.overlay.querySelector('strong').textContent = 'Ready when you are.';
-  els.overlay.querySelector('span').textContent = 'Follow the notes down to your keys.';
-  els.start.innerHTML = 'Start playing <span>→</span>';
+  els.overlay.querySelector('strong').textContent = selected.kind === 'lesson' ? selected.title : 'Ready when you are.';
+  els.overlay.querySelector('span').textContent = selected.untimed ? 'Find the highlighted key. There is no timer.' : mode === 'learning' ? `Watch the beat at ${formatBpm(selected)}.` : 'Follow the notes down to your keys.';
+  els.start.innerHTML = selected.kind === 'lesson' ? 'Start lesson <span>→</span>' : 'Start playing <span>→</span>';
   els.start.disabled = !preview.length;
   els.status.textContent = preview.length ? 'READY TO PLAY' : 'LOADING SCORE';
   els.pause.disabled = true; els.pause.querySelector('span').textContent = 'Pause';
-  renderNotes(); renderProgress(); updateTargetKey();
+  renderNotes(); renderProgress(); updateTargetKey(); renderLessonTimer();
 }
 
-async function selectSong(song,{allowShortFreeResume = false} = {}) {
+async function selectSong(song,{allowShortFreeResume = false,preserveSpeed = false} = {}) {
   if (mode === 'free' && isLearningOnly(song) && !allowShortFreeResume) return;
+  if (mode === 'learning' && !LEARNING_STEPS.some(step => step.id === song.id)) return;
   const serial = ++loadingSerial;
+  if (mode === 'learning' && song.id !== selected.id && !preserveSpeed) {
+    speed = 1;
+    $('#speed-select').value = '1';
+  }
+  if (mode === 'learning' && song.kind === 'lesson' && octave !== 0) {
+    octave = 0;
+    renderKeyboard();
+  }
   selected = song;
-  if (!isLearningOnly(song)) lastFreeSong = song;
+  renderOctaveControls();
+  if (mode === 'free' && !isLearningOnly(song)) lastFreeSong = song;
   els.title.textContent = song.title;
   els.composer.textContent = song.composer;
   els.difficulty.textContent = `${'★'.repeat(song.difficulty)} ${['','BEGINNER','EASY','INTERMEDIATE','ADVANCED'][song.difficulty]}`;
   els.source.hidden = !song.sourceUrl;
   if (song.sourceUrl) els.source.href = song.sourceUrl;
   els.kind.textContent = scoreKindLabel(song,true);
-  resetSession(); updateRank();
+  renderTempo(); renderLessonBanner(); resetSession(); updateTip(); updateRank();
   try {
     await ensureScore(song);
     if (serial !== loadingSerial) return;
     els.kind.textContent = scoreKindLabel(song);
-    resetSession(); updateRank();
+    renderTempo(); resetSession(); updateRank();
   } catch(error) {
     if (serial !== loadingSerial) return;
     els.status.textContent = 'SCORE UNAVAILABLE';
@@ -336,7 +412,10 @@ async function selectSong(song,{allowShortFreeResume = false} = {}) {
 
 async function changeSong(direction) {
   const songs = playableLibrary(); const index = songs.findIndex(song => song.id === selected.id);
-  await selectSong(songs[index < 0 ? (direction > 0 ? 0 : songs.length - 1) : (index + direction + songs.length) % songs.length]);
+  const next = index < 0 ? (direction > 0 ? 0 : songs.length - 1)
+    : mode === 'learning' ? Math.max(0,Math.min(songs.length - 1,index + direction))
+      : (index + direction + songs.length) % songs.length;
+  await selectSong(songs[next]);
 }
 
 async function startSession() {
@@ -348,10 +427,10 @@ async function startSession() {
   }
   try { await ensureScore(selected); } catch(error) { showFeedback(error.message,true); return; }
   session = new PracticeSession(selected,mode,speed,octave);
-  session.elapsed = -Math.max(1.6, 3 * 60 / ((selected.bpm || 90) * speed));
+  session.elapsed = selected.untimed ? 0 : -Math.max(1.6, 3 * 60 / ((selected.bpm || 90) * speed));
   resultSaved = false; els.overlay.hidden = true; els.pause.disabled = false;
   els.status.textContent = 'GET READY'; frameTime = performance.now();
-  renderNotes(); renderProgress(); updateTargetKey(); saveCheckpoint(true);
+  renderNotes(); renderProgress(); updateTargetKey(); renderLessonTimer(); saveCheckpoint(true);
   audio.unlock().catch(() => {});
 }
 
@@ -373,14 +452,21 @@ function finishSession() {
   progress = addResult(progress,selected,mode,session.accuracy);
   saveProgressAndClearCheckpoint(); updateRank(); renderProgress();
   els.status.textContent = 'COMPLETE';
+  $('#result-heading').textContent = selected.kind === 'lesson' ? 'LESSON COMPLETE' : 'SONG COMPLETE';
   $('#result-title').textContent = session.accuracy >= 90 ? 'Beautifully played.' : session.accuracy >= 60 ? 'Nice progress.' : 'Keep practicing.';
   const difficulty = $('#result-difficulty');
   difficulty.textContent = '★'.repeat(selected.difficulty);
-  difficulty.setAttribute('aria-label', `${selected.difficulty}-star song difficulty`);
+  difficulty.setAttribute('aria-label', `${selected.difficulty}-star ${selected.kind === 'lesson' ? 'lesson' : 'song'} difficulty`);
   $('#result-accuracy').textContent = `${session.accuracy}%`;
   $('#result-detail').textContent = mode === 'free'
     ? `${session.hits} of ${session.total} notes played on time · ${selected.title}`
-    : `${session.total} notes learned · ${session.errors} ${session.errors === 1 ? 'retry' : 'retries'} · ${selected.title}`;
+    : `${session.total} ${session.total === 1 ? 'note' : 'notes'} ${selected.kind === 'lesson' ? 'learned' : 'practiced'} · ${session.errors} ${session.errors === 1 ? 'retry' : 'retries'} · ${session.accuracy >= MASTERY_ACCURACY ? 'Step mastered' : `${MASTERY_ACCURACY}% needed to master`}`;
+  $('#result-retry').innerHTML = `${selected.kind === 'lesson' ? 'Practice again' : 'Play again'} <span>↺</span>`;
+  $('#result-next').textContent = mode === 'learning'
+    ? selected.id === LEARNING_STEPS.at(-1).id ? 'Review lessons →' : 'Next step →'
+    : 'Next song →';
+  $('#result-exit').setAttribute('aria-label',mode === 'learning' ? 'Exit results and return to the learning path' : 'Exit results and return to the song library');
+  renderLessonTimer();
   $('#result-dialog').showModal();
 }
 
@@ -398,7 +484,7 @@ function pressMidi(midi,source) {
       showFeedback(`Try ${target ? midiName(target.midi) : 'the highlighted note'}${key ? ` · ${key.toUpperCase()}` : ''}`,true);
     }
     els.status.textContent = session.waiting !== null ? 'PLAY THE HIGHLIGHTED KEY' : 'PLAYING';
-    updateTargetKey(); renderProgress(); positionNotes(); saveCheckpoint();
+    updateTargetKey(); renderProgress(); positionNotes(); renderLessonTimer(); saveCheckpoint();
     if (session.finished) finishSession();
   }
 }
@@ -414,16 +500,16 @@ function releaseKey(source) {
 }
 
 function changeOctave(delta) {
+  if (mode === 'learning' && selected.kind === 'lesson') return;
   const next = Math.max(-2,Math.min(2,octave + delta));
   if (next === octave) return;
   const difference = next - octave;
   for (const source of [...heldKeys.keys()]) releaseKey(source);
   octave = next;
-  els.octave.textContent = `${midiName(60 + octave * 12)}–${midiName(74 + octave * 12)}`;
-  $('#octave-down').disabled = octave === -2; $('#octave-up').disabled = octave === 2;
+  renderOctaveControls();
   if (session) session.events.forEach(event => { if (event.midi !== null) event.midi += 12 * difference; });
   preview = selected.events || selected.notes ? buildTimeline(selected,speed,octave,mode) : [];
-  renderKeyboard(); renderNotes(); saveCheckpoint(true);
+  renderKeyboard(); renderNotes(); renderLessonTimer(); saveCheckpoint(true);
 }
 
 function loop(now) {
@@ -433,7 +519,7 @@ function loop(now) {
     if (session.waiting !== null) els.status.textContent = 'PLAY THE HIGHLIGHTED KEY';
     else if (session.elapsed >= 0) els.status.textContent = 'PLAYING';
     else els.status.textContent = `GET READY · ${Math.ceil(-session.elapsed)}`;
-    renderProgress(); updateTargetKey(); saveCheckpoint();
+    renderProgress(); updateTargetKey(); renderLessonTimer(); saveCheckpoint();
     if (session.finished) finishSession();
   }
   positionNotes(); requestAnimationFrame(loop);
@@ -447,7 +533,7 @@ async function importMidi(file) {
     const adapted = adaptMidiForLaptop(parseMidi(bytes));
     const digest = new Uint8Array(await crypto.subtle.digest('SHA-256',bytes));
     const id = `import-${[...digest.slice(0,8)].map(x => x.toString(16).padStart(2,'0')).join('')}`;
-    const song = { id,title:file.name.replace(/\.(mid|midi)$/i,'').slice(0,80),composer:'Your MIDI · saved in this browser',difficulty:3,kind:'imported',events:adapted.notes,duration:adapted.duration,learningSeconds:40 };
+    const song = { id,title:file.name.replace(/\.(mid|midi)$/i,'').slice(0,80),composer:'Your MIDI · saved in this browser',difficulty:3,kind:'imported',events:adapted.notes,duration:adapted.duration,bpm:adapted.bpm,bpmRange:adapted.bpmRange };
     let saved = true;
     try { await savePersonalSong(song,bytes); }
     catch { saved = false; }
@@ -455,6 +541,10 @@ async function importMidi(file) {
     const existing = imports.findIndex(item => item.id === id);
     if (existing >= 0) imports.splice(existing,1);
     imports.push(song);
+    if (mode === 'learning') {
+      mode = 'free'; difficultyFilter = 0; els.search.value = '';
+      renderFilters(); updateModeButtons();
+    }
     await selectSong(song);
     showFeedback(saved ? 'MIDI saved here — full piece in Free mode.' : 'MIDI ready for this visit; this browser could not save it.',!saved);
   } catch(error) { showFeedback(`Could not import MIDI: ${error.message}`,true); }
@@ -467,7 +557,7 @@ async function restorePersonalSongs() {
       try {
         if (imports.some(song => song.id === record.id)) continue;
         const adapted = adaptMidiForLaptop(parseMidi(record.bytes));
-        imports.push({ id:record.id,title:record.title,composer:'Your MIDI · saved in this browser',difficulty:record.difficulty || 3,kind:'imported',events:adapted.notes,duration:adapted.duration,learningSeconds:40,persisted:true });
+        imports.push({ id:record.id,title:record.title,composer:'Your MIDI · saved in this browser',difficulty:record.difficulty || 3,kind:'imported',events:adapted.notes,duration:adapted.duration,bpm:adapted.bpm,bpmRange:adapted.bpmRange,persisted:true });
       } catch { /* A damaged personal file should not hide the rest. */ }
     }
     renderLibrary();
@@ -478,14 +568,14 @@ async function resumeCheckpoint() {
   const saved = savedCheckpoint();
   if (!saved) return;
   const song = library().find(item => item.id === saved.songId);
-  if (!song) return;
+  if (!song || (saved.mode === 'learning' && !LEARNING_STEPS.some(step => step.id === song.id))) return;
   mode = saved.mode === 'learning' ? 'learning' : 'free';
   speed = [0.5,0.75,1,1.25].includes(saved.speed) ? saved.speed : 1;
   octave = Math.max(-2,Math.min(2,Number(saved.octave) || 0));
   $('#speed-select').value = String(speed);
   updateModeButtons();
-  els.octave.textContent = `${midiName(60 + octave * 12)}–${midiName(74 + octave * 12)}`;
-  renderKeyboard(); await selectSong(song,{allowShortFreeResume:true});
+  renderOctaveControls();
+  renderKeyboard(); await selectSong(song,{allowShortFreeResume:true,preserveSpeed:true});
   session = new PracticeSession(selected,mode,speed,octave);
   if (saved.states?.length !== session.events.length) { session=null; resetSession(); return; }
   session.events.forEach((event,index) => { event.state = saved.states[index] === 'h' ? 'hit' : saved.states[index] === 'm' ? 'missed' : 'pending'; });
@@ -495,7 +585,7 @@ async function resumeCheckpoint() {
   resultSaved = false; paused = false;
   els.overlay.hidden = true; els.pause.disabled = false;
   els.status.textContent = session.waiting !== null ? 'PLAY THE HIGHLIGHTED KEY' : 'PLAYING';
-  frameTime = performance.now(); renderNotes(); renderProgress(); updateTargetKey();
+  frameTime = performance.now(); renderNotes(); renderProgress(); updateTargetKey(); renderLessonTimer();
 }
 
 function updateModeButtons() {
@@ -504,8 +594,9 @@ function updateModeButtons() {
     button.setAttribute('aria-pressed',String(name === mode));
   }
   els.mode.textContent = mode === 'free' ? 'Free mode' : 'Learning mode'; updateTip();
-  $('#library-intro').textContent = mode === 'free' ? 'Bundled pieces run at least one minute; your imports can vary.' : 'Full-score excerpts and short studies.';
+  $('#library-intro').textContent = mode === 'free' ? 'Bundled pieces run at least one minute; your imports can vary.' : 'Start with single notes, then timed practice and slow songs.';
   els.kind.textContent = scoreKindLabel(selected,!selected.events);
+  renderLessonBanner(); renderTempo(); renderLessonTimer();
 }
 
 function setMode(value) {
@@ -514,8 +605,7 @@ function setMode(value) {
   difficultyFilter = 0;
   els.search.value = '';
   renderFilters(); updateModeButtons();
-  if (mode === 'free' && isLearningOnly(selected)) selectSong(lastFreeSong);
-  else { resetSession(); updateRank(); }
+  selectSong(mode === 'learning' ? nextLearningStep(progress) : lastFreeSong);
 }
 
 document.addEventListener('keydown',event => {
@@ -541,15 +631,24 @@ $('#previous-song').addEventListener('click',() => changeSong(-1));
 $('#next-song').addEventListener('click',() => changeSong(1));
 $('#free-mode').addEventListener('click',() => setMode('free'));
 $('#learning-mode').addEventListener('click',() => setMode('learning'));
-$('#speed-select').addEventListener('change',event => { speed=Number(event.target.value); resetSession(); });
+$('#speed-select').addEventListener('change',event => { speed=Number(event.target.value); renderTempo(); resetSession(); });
 $('#sound-button').addEventListener('click',() => { audio.enabled=!audio.enabled; if (!audio.enabled) audio.stopAll(); $('#sound-button').textContent=audio.enabled?'♪':'♩'; $('#sound-button').setAttribute('aria-label',audio.enabled?'Mute sound':'Unmute sound'); });
 $('#octave-down').addEventListener('click',() => changeOctave(-1));
 $('#octave-up').addEventListener('click',() => changeOctave(1));
 $('#help-button').addEventListener('click',() => $('#help-dialog').showModal());
+$('#hear-note').addEventListener('click',() => {
+  const target = session?.target || preview.find(event => event.midi !== null);
+  if (target) audio.preview(target.midi).catch(() => showFeedback('Sound is unavailable on this device.',true));
+});
 $('#close-help').addEventListener('click',() => $('#help-dialog').close());
 $('#got-it').addEventListener('click',() => $('#help-dialog').close());
 $('#result-retry').addEventListener('click',() => { session=null; startSession(); });
-$('#result-next').addEventListener('click',async () => { $('#result-dialog').close(); await changeSong(1); startSession(); });
+$('#result-next').addEventListener('click',async () => {
+  $('#result-dialog').close();
+  if (mode === 'learning' && selected.id === LEARNING_STEPS.at(-1).id) await selectSong(LEARNING_STEPS[0]);
+  else await changeSong(1);
+  startSession();
+});
 function exitResults() {
   $('#result-dialog').close();
   resetSession();
@@ -560,9 +659,11 @@ $('#result-dialog').addEventListener('cancel',event => { event.preventDefault();
 $('#import-midi').addEventListener('click',() => $('#midi-file').click());
 $('#midi-file').addEventListener('change',event => { importMidi(event.target.files[0]); event.target.value=''; });
 
-renderProfileLink(); renderFilters(); renderKeyboard(); updateModeButtons();
+renderProfileLink(); renderFilters(); renderKeyboard(); renderOctaveControls(); updateModeButtons();
 selectSong(selected).then(async () => {
   await restorePersonalSongs();
-  if (new URLSearchParams(location.search).has('resume')) resumeCheckpoint();
+  const params = new URLSearchParams(location.search);
+  if (params.has('resume')) resumeCheckpoint();
+  else if (params.has('learn')) setMode('learning');
 });
 frameTime = performance.now(); requestAnimationFrame(loop);

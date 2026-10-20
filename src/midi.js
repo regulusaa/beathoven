@@ -93,7 +93,14 @@ export function parseMidi(input) {
     track: note.track,
     velocity: note.velocity
   })).sort((a,b) => a.start - b.start || b.midi - a.midi);
-  return { notes, duration: notes.reduce((end,note) => Math.max(end,note.start + note.duration),0), tracks: trackCount };
+  const duration = notes.reduce((end,note) => Math.max(end,note.start + note.duration),0);
+  const bpmValues = tempo.filter(event => event.seconds < duration && event.micros > 0)
+    .map(event => Math.round(60000000 / event.micros));
+  return {
+    notes, duration, tracks: trackCount,
+    bpm: bpmValues[0] || 120,
+    bpmRange: [Math.min(...bpmValues), Math.max(...bpmValues)]
+  };
 }
 
 // A full piano score can require several hands and many octaves. For the laptop
@@ -112,5 +119,8 @@ export function adaptMidiForLaptop(parsed) {
     while (midi > 75) midi -= 12;
     return { midi, start: note.start, duration: note.duration };
   });
-  return { notes, duration: parsed.duration, sourceNoteCount: parsed.notes.length };
+  return {
+    notes, duration: parsed.duration, sourceNoteCount: parsed.notes.length,
+    bpm: parsed.bpm, bpmRange: parsed.bpmRange
+  };
 }

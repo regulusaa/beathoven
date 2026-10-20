@@ -40,6 +40,24 @@ export class PianoAudio {
     this.voices.set(midi, { output, oscillators });
   }
 
+  async preview(midi) {
+    if (!this.enabled) return;
+    await this.unlock();
+    const ctx = this.context;
+    const now = ctx.currentTime;
+    const output = ctx.createGain();
+    output.gain.setValueAtTime(.0001,now);
+    output.gain.exponentialRampToValueAtTime(.18,now + .015);
+    output.gain.exponentialRampToValueAtTime(.0001,now + .65);
+    const oscillator = ctx.createOscillator();
+    oscillator.type = 'triangle';
+    oscillator.frequency.value = frequency(midi);
+    oscillator.connect(output).connect(ctx.destination);
+    oscillator.start(now);
+    oscillator.stop(now + .67);
+    oscillator.onended = () => output.disconnect();
+  }
+
   stop(midi) {
     const voice = this.voices.get(midi);
     if (!voice || !this.context) return;

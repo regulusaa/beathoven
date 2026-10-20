@@ -38,6 +38,7 @@ export class PracticeSession {
 
   advance(delta) {
     if (!this.playing || this.finished || this.waiting !== null) return;
+    if (this.mode === 'learning' && this.song.untimed) return;
     this.elapsed += Math.max(0, delta);
     for (const event of this.events) {
       if (event.midi === null || event.state !== 'pending') continue;
@@ -58,7 +59,7 @@ export class PracticeSession {
     if (this.finished) return 'none';
     if (this.mode === 'learning') {
       const target = this.target;
-      if (!target || this.elapsed < target.start - .25) return 'early';
+      if (!target || (!this.song.untimed && this.elapsed < target.start - .25)) return 'early';
       if (midi !== target.midi) {
         this.errors++;
         this.waiting = target.index;
@@ -66,7 +67,10 @@ export class PracticeSession {
         return 'wrong';
       }
       target.state = 'hit';
-      if (this.waiting !== null) {
+      if (this.song.untimed) {
+        this.elapsed = this.target?.start ?? this.endTime;
+        this.waiting = null;
+      } else if (this.waiting !== null) {
         this.elapsed = target.start;
         this.waiting = null;
       }
@@ -101,7 +105,9 @@ export class PracticeSession {
 
 export function addResult(progress, song, mode, accuracy) {
   const next = structuredClone(progress || { songs: {}, totalPlays: 0 });
-  const entry = next.songs[song.id] || { best: 0, plays: 0, last: 0, difficulty: song.difficulty };
+  const lesson = song.kind === 'lesson';
+  const collection = lesson ? (next.lessons ||= {}) : (next.songs ||= {});
+  const entry = collection[song.id] || { best: 0, plays: 0, last: 0, difficulty: song.difficulty };
   entry.best = Math.max(entry.best, accuracy);
   entry.last = accuracy;
   entry.plays++;
@@ -110,8 +116,8 @@ export function addResult(progress, song, mode, accuracy) {
   entry.composer = song.composer || entry.composer || '';
   entry.lastMode = mode;
   entry.lastPlayed = new Date().toISOString();
-  next.songs[song.id] = entry;
-  next.totalPlays++;
+  collection[song.id] = entry;
+  if (!lesson) next.totalPlays++;
   return next;
 }
 

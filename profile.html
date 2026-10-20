@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0d16">
   <title>Your profile — Beathoven</title>
-  <link rel="stylesheet" href="./styles.css">
-  <link rel="stylesheet" href="./profile.css">
+  <link rel="stylesheet" href="./styles.css?v=20261020-mastery">
+  <link rel="stylesheet" href="./profile.css?v=20261020-mastery">
 </head>
 <body>
   <header class="topbar">
@@ -37,12 +37,13 @@
       <div class="profile-hero"><div class="avatar-wrap"><div id="avatar" class="profile-avatar"></div><button id="avatar-change" class="avatar-edit" type="button" title="Change profile picture" aria-label="Change profile picture">✎</button><input id="avatar-upload" type="file" accept="image/*" hidden></div><div class="profile-identity"><span class="section-eyebrow">PIANIST PROFILE</span><h2 id="profile-name"></h2><p id="profile-since"></p></div><button id="signout-button" class="small-button" type="button">Sign out</button></div>
       <p id="avatar-error" class="form-error" role="alert"></p>
       <div class="profile-stats"><div><span>RANK</span><strong id="profile-rank">Beginner</strong></div><div><span>POINTS</span><strong id="profile-points">0</strong></div><div><span>SONGS PLAYED</span><strong id="profile-songs">0</strong></div><div><span>TOTAL PLAYS</span><strong id="profile-plays">0</strong></div></div>
+      <div class="learning-progress"><div><span class="section-eyebrow">LEARNING PATH</span><strong id="learning-progress-title">0 steps complete</strong><p id="learning-progress-next"></p></div><div class="learning-progress-side"><span id="learning-progress-count">0 / 0</span><a href="./index.html?learn=1">Continue learning →</a></div><div class="learning-progress-track"><div id="learning-progress-fill"></div></div></div>
       <div id="resume-card" class="resume-card" hidden><div><span class="section-eyebrow">PICK UP WHERE YOU LEFT OFF</span><strong id="resume-title"></strong><p id="resume-detail"></p></div><a class="primary-button" href="./index.html?resume=1">Resume <span>→</span></a></div>
       <div class="history-heading"><div><span class="section-eyebrow">YOUR JOURNEY</span><h3>Song history</h3></div><a href="./index.html">Play more →</a></div>
       <div id="profile-history" class="profile-history"></div>
       <p class="privacy-note">Progress saves automatically after each completed song and while you practice. Clearing this browser's site data removes local profiles and their scores.</p>
     </section>
   </main>
-  <script type="module" src="./src/profile-page.js?v=20261019-long-scores"></script>
+  <script type="module" src="./src/profile-page.js?v=20261020-mastery"></script>
 </body>
 </html>

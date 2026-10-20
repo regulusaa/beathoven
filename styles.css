@@ -37,3 +37,16 @@
 .primary-button:disabled{opacity:.45;cursor:wait}
 @media(max-width:760px){.library-footer{display:flex;margin-top:11px;padding-top:10px}.library-footer p{display:none}.song-topline{min-height:91px}.header-profile{padding-right:5px}.header-profile #header-profile-name{display:none}}
 @media(max-width:470px){.piano-keyboard{height:74px}.black-key{font-size:8px}.key-letter{font-size:8px}.key-name{font-size:6px}.falling-note{font-size:7px}.song-topline h2{font-size:23px}}
+
+.score-meta{flex-wrap:wrap}
+.bpm-pill{padding:3px 7px;border:1px solid #504361;border-radius:5px;background:#251e31;color:#dfc8fb;font-size:10px;letter-spacing:.4px;white-space:nowrap}
+.lesson-banner{display:flex;align-items:flex-start;gap:12px;margin:-3px 0 14px;padding:12px 14px;border:1px solid #665078;border-radius:9px;background:#241b32;color:#e6d9f3}
+.lesson-banner[hidden],.lesson-timer[hidden]{display:none}
+.lesson-banner>span{flex:none;padding:4px 7px;border-radius:5px;background:#634879;color:#fff;font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase}
+.lesson-banner p{margin:2px 0 0;font-size:11px;line-height:1.55}
+.lesson-banner p{flex:1}
+.hear-note{flex:none;border:1px solid #79628d;border-radius:6px;background:#3a294f;color:#eedcff;padding:6px 9px;font-size:10px;font-weight:800;white-space:nowrap}
+.hear-note:hover{background:#4c3567}
+.lesson-timer{margin-left:8px;padding:4px 7px;border-radius:5px;background:#3b2b50;color:#ead8ff;font-size:9px;white-space:nowrap;letter-spacing:.3px}
+@media(max-width:760px){.lesson-banner{gap:8px;margin-top:0}.lesson-banner>span{white-space:nowrap}}
+@media(max-width:470px){.lesson-banner{display:block}.lesson-banner p{margin-top:7px}.hear-note{margin-top:9px}.lesson-timer{font-size:8px;margin-left:2px}.stage-progress{gap:4px}.progress-track{width:42px}}

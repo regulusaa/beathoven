@@ -1,10 +1,10 @@
-import { SONGS } from './songs.js';
-import { FULL_SCORES } from './full-scores.js?v=20261019-long-scores';
+import { LEARNING_STEPS, MASTERY_ACCURACY, nextLearningStep } from './curriculum.js?v=20261020-mastery';
+import { FULL_SCORES } from './full-scores.js?v=20261020-mastery';
 import { rankSummary } from './practice.js';
 import { listProfiles, currentProfile, createProfile, signIn, signOut, updateProfile, imageToAvatar } from './profiles.js';
 
 const $ = selector => document.querySelector(selector);
-const allSongs = [...FULL_SCORES,...SONGS];
+const allSongs = [...FULL_SCORES,...LEARNING_STEPS];
 
 function showTab(tab) {
   $('#signin-form').hidden = tab !== 'signin';
@@ -33,9 +33,20 @@ function render() {
   $('#profile-points').textContent = summary.points.toLocaleString();
   $('#profile-songs').textContent = summary.unique;
   $('#profile-plays').textContent = summary.totalPlays;
+  const completedSteps = LEARNING_STEPS.filter(step => {
+    const result = step.kind === 'lesson' ? profile.progress?.lessons?.[step.id] : profile.progress?.songs?.[step.id];
+    return (result?.best || 0) >= MASTERY_ACCURACY;
+  }).length;
+  $('#learning-progress-title').textContent = `${completedSteps} ${completedSteps === 1 ? 'step' : 'steps'} mastered`;
+  $('#learning-progress-count').textContent = `${completedSteps} / ${LEARNING_STEPS.length}`;
+  $('#learning-progress-next').textContent = completedSteps === LEARNING_STEPS.length
+    ? 'Every step completed. Replay a lesson or try a full piece.'
+    : `Up next: ${nextLearningStep(profile.progress).title}`;
+  $('#learning-progress-fill').style.width = `${100 * completedSteps / LEARNING_STEPS.length}%`;
   const checkpoint = profile.checkpoint;
-  $('#resume-card').hidden = !checkpoint;
-  if (checkpoint) {
+  const canResume = checkpoint && (checkpoint.mode !== 'learning' || LEARNING_STEPS.some(step => step.id === checkpoint.songId));
+  $('#resume-card').hidden = !canResume;
+  if (canResume) {
     const song = allSongs.find(item => item.id === checkpoint.songId);
     $('#resume-title').textContent = song?.title || checkpoint.songTitle || checkpoint.songId;
     const elapsed = Math.max(0, Math.floor(checkpoint.elapsed));

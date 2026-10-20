@@ -19,6 +19,7 @@ test('every bundled full score loads, parses, and adapts to playable laptop note
     const parsed = parseMidi(readFileSync(path));
     const adapted = adaptMidiForLaptop(parsed);
     assert.ok(Math.abs(song.duration - parsed.duration) <= 1, `${song.title} has an incorrect catalog duration`);
+    assert.equal(song.bpm, parsed.bpm, `${song.title} has an incorrect catalog BPM`);
     if (FREE_SCORES.includes(song)) assert.ok(parsed.duration >= FREE_SCORE_MIN_DURATION, `${song.title} is too short for Free mode`);
     assert.ok(parsed.notes.length > 0, `${song.title} is empty`);
     assert.ok(adapted.duration >= 20, `${song.title} has a suspiciously short duration`);
