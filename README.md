@@ -39,7 +39,7 @@ The 25 short pieces are original exercises or simplified arrangements of traditi
 There are no runtime package dependencies or build step. Serve the repository root with any static HTTP server:
 
 ```sh
-python3 -m http.server 4173
+npm run dev
 ```
 
 Open `http://localhost:4173`. Run tests with `npm test` (Node.js 20+).
