@@ -6,7 +6,7 @@ import { FULL_SCORES, FREE_SCORES, FREE_SCORE_MIN_DURATION } from '../src/full-s
 import { SONGS } from '../src/songs.js';
 import { parseMidi, adaptMidiForLaptop } from '../src/midi.js';
 import { buildTimeline, PracticeSession } from '../src/practice.js';
-import { keyForMidi, wideKeyPosition } from '../src/music.js';
+import { keyForMidi, layoutRange } from '../src/music.js';
 
 test('every bundled full score loads, parses, and adapts to playable laptop notes', () => {
   assert.ok(FULL_SCORES.length >= 35);
@@ -42,9 +42,12 @@ test('Moonlight Sonata runs for its full first movement in Free mode', () => {
   assert.ok(learning.total < free.total);
 });
 
-test('the widened key positions preserve piano geometry', () => {
-  assert.ok(wideKeyPosition(60) < wideKeyPosition(61));
-  assert.ok(wideKeyPosition(61) < wideKeyPosition(62));
-  assert.ok(wideKeyPosition(62) < wideKeyPosition(64));
-  assert.equal(wideKeyPosition(72,1),wideKeyPosition(60,0));
+test('scores fold into the full range of the chosen keyboard layout', () => {
+  const parsed = parseMidi(readFileSync(new URL('../assets/midi/fur-elise.mid',import.meta.url)));
+  for (const layout of ['60','75','100']) {
+    const { low, high } = layoutRange(layout);
+    const adapted = adaptMidiForLaptop(parsed, high);
+    assert.ok(adapted.notes.every(note => note.midi >= low && note.midi <= high && keyForMidi(note.midi,0,layout)));
+  }
+  assert.ok(adaptMidiForLaptop(parsed,91).notes.some(note => note.midi > 79), 'the 100% layout should use its extra keys');
 });

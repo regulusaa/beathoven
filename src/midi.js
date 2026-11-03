@@ -105,8 +105,9 @@ export function parseMidi(input) {
 
 // A full piano score can require several hands and many octaves. For the laptop
 // exercise, keep the highest note at each onset and fold its pitch into the
-// active C4–D5 key map. The rhythm and complete piece length are preserved.
-export function adaptMidiForLaptop(parsed) {
+// active keyboard layout, from C4 up to its highest key (G5 on the 60% map).
+// The rhythm and complete piece length are preserved.
+export function adaptMidiForLaptop(parsed, high = 79) {
   const groups = new Map();
   for (const note of parsed.notes) {
     const key = Math.round(note.start * 1000);
@@ -116,7 +117,7 @@ export function adaptMidiForLaptop(parsed) {
   const notes = [...groups.values()].sort((a,b) => a.start - b.start).map(note => {
     let midi = note.midi;
     while (midi < 60) midi += 12;
-    while (midi > 75) midi -= 12;
+    while (midi > high) midi -= 12;
     return { midi, start: note.start, duration: note.duration };
   });
   return {

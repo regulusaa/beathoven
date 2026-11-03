@@ -6,13 +6,21 @@ A free, open-source piano learning app for the laptop keyboard you already own. 
 
 1. Choose from **30 complete classical piano scores of at least one minute in Free mode**. Learning mode offers all 35 complete scores as opening excerpts, including five shorter editions, plus 25 beginner studies or traditional melodies. The library shows every score's duration before selection.
 2. Pick **Free mode** to play a full score to the end without stopping, or **Learning mode** to practice the opening of a full piece (the first 40 seconds of note onsets) or a short study. Learning mode rewinds after a missed note and waits until you play it correctly.
-3. Press each key when its colored bar reaches the glowing line. A longer bar shows a longer hold. The black note field has no vertical guide grid, and a three-octave piano is shown below it.
+3. Press each key when its colored bar reaches the glowing line. A longer bar shows a longer hold. The black note field has no vertical guide grid, and the piano below it shows only the keys your keyboard layout can play.
 
-The laptop's `A S D F G H J K L` keys map left to right to white piano keys C4–D5. `W E T Y U O P` are the black keys between them. On the on-screen piano, those laptop keys are labeled; the other keys can be clicked or tapped. Up/Down or the octave buttons shift the song and laptop map together. Speed can be set from 50% to 125%.
+Choose the keyboard you have under **KEYS**. The on-screen piano shows only the keys that layout can play, starting at middle C. Keys are read by physical position, so any language setting works.
+
+- **60% · laptop** (default), C4–G5: `A S D F G H J K L ; ' Enter` are the white keys and `W E T Y U O P ]` are the black keys between them. `R`, `I` and `[` are unused because the piano has no black key between E–F or B–C.
+- **75%**, C4–A5: adds `\` (G#5) and the Page Up key beside Enter (A5).
+- **100%**, C4–G6: adds `\` (G#5), then Delete, End, Page Down and numpad 7, 8, 9, + as white keys, with Home, Num Lock, numpad / and numpad − as black keys.
+
+Caps Lock is not used because browsers only report it when it switches on or off. Up/Down or the octave buttons shift the song and key map together. Speed can be set from 50% to 125%.
+
+Long bars are **hold notes**. Keep the key down until the bar has passed the line. In Free mode a hold note counts half for hitting it on time and half for how long it was held. The optional **Pedal** challenge (Free mode) turns Shift into a sustain pedal. Yellow cues in the pedal lane show when to hold it, and those cues are scored too.
 
 ### Full-score adaptation
 
-The complete MIDI scores often contain simultaneous notes across several octaves. Beathoven creates a **single-note laptop adaptation** by keeping the highest note at each onset and moving that note by octaves into the C4–D5 laptop range. It keeps the source's timing and complete piece length. It is a practice arrangement, not a reproduction of the original two-hand piano part. The [original MIDI scores](assets/SOURCES.md) are also in the repository. A future physical-piano mode could use them without this reduction.
+The complete MIDI scores often contain simultaneous notes across several octaves. Beathoven creates a **single-note laptop adaptation** by keeping the highest note at each onset and moving that note by octaves into the range of the chosen keyboard layout (C4–G5 on 60%, up to C4–G6 on 100%). It keeps the source's timing and complete piece length. It is a practice arrangement, not a reproduction of the original two-hand piano part. The [original MIDI scores](assets/SOURCES.md) are also in the repository. A future physical-piano mode could use them without this reduction.
 
 ### Bring your own MIDI
 

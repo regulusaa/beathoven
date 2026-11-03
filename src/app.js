@@ -1,9 +1,9 @@
 import { LEARNING_STEPS, MASTERY_ACCURACY, nextLearningStep } from './curriculum.js?v=20261020-mastery';
 import { FULL_SCORES, FREE_SCORES } from './full-scores.js?v=20261020-mastery';
-import { keyboardMidi, keyForMidi, wideKeyPosition, midiName } from './music.js';
-import { PracticeSession, addResult, rankSummary, buildTimeline } from './practice.js?v=20261020-mastery';
-import { PianoAudio } from './audio.js?v=20261020-mastery';
-import { parseMidi, adaptMidiForLaptop } from './midi.js?v=20261020-mastery';
+import { keyboardMidi, keyForMidi, keyPosition, midiName, isWhite, LAYOUTS, DEFAULT_LAYOUT, layoutRange } from './music.js?v=20261102-layouts';
+import { PracticeSession, addResult, rankSummary, buildTimeline, buildPedalCues } from './practice.js?v=20261102-layouts';
+import { PianoAudio } from './audio.js?v=20261102-layouts';
+import { parseMidi, adaptMidiForLaptop } from './midi.js?v=20261102-layouts';
 import { currentProfile, updateProfile } from './profiles.js';
 import { loadPersonalSongs, savePersonalSong } from './personal-songs.js';
 
@@ -14,8 +14,9 @@ const els = {
   kind: $('#song-kind-label'), bpm: $('#song-bpm'), sessionBpm: $('#session-bpm'), source: $('#score-source'),
   lessonBanner: $('#lesson-banner'), lessonPhase: $('#lesson-phase'), lessonInstruction: $('#lesson-instruction'),
   lessonTimer: $('#lesson-timer'),
-  stage: $('#note-stage'), notes: $('#falling-notes'), keyboard: $('#piano-keyboard'),
-  overlay: $('#stage-overlay'), start: $('#start-button'), status: $('#stage-status'), feedback: $('#feedback'),
+  stage: $('#note-stage'), notes: $('#falling-notes'), keyboard: $('#piano-keyboard'), stageCard: $('.stage-card'),
+  overlay: $('#stage-overlay'), start: $('#start-button'), feedback: $('#feedback'),
+  layoutSelect: $('#layout-select'), pedalToggle: $('#pedal-toggle'), pedalLane: $('#pedal-lane'), pedalCues: $('#pedal-cues'),
   noteProgress: $('#note-progress'), progressFill: $('#progress-fill'), pause: $('#pause-button'),
   mode: $('#session-mode'), octave: $('#octave-label'), best: $('#best-accuracy'),
   tier: $('#rank-tier'), points: $('#rank-points'), unique: $('#unique-songs'), plays: $('#total-plays'),
@@ -42,8 +43,22 @@ let feedbackTimer = 0;
 let loadingSerial = 0;
 let checkpointTime = 0;
 const heldKeys = new Map();
+const pedalKeys = new Set();
 const noteNodes = new Map();
+const cueNodes = new Map();
+let previewCues = [];
 let progress = currentProfile()?.progress || readGuestProgress();
+let layout = readSetting('beathoven-layout-v1', value => value in LAYOUTS) || DEFAULT_LAYOUT;
+let pedalChallenge = readSetting('beathoven-pedal-v1', value => value === 'on') === 'on';
+const pedalActive = () => pedalChallenge && mode === 'free';
+
+function readSetting(key, valid) {
+  try { const value = localStorage.getItem(key); return valid(value) ? value : null; } catch { return null; }
+}
+
+function saveSetting(key, value) {
+  try { localStorage.setItem(key, value); } catch { /* The choice still applies for this visit. */ }
+}
 
 function readGuestProgress() {
   try {
@@ -69,14 +84,22 @@ function saveCheckpoint(force = false) {
   checkpointTime = now;
   const checkpoint = {
     songId: selected.id, songTitle: selected.title, mode, speed, octave, elapsed: session.elapsed,
-    waiting: session.waiting, errors: session.errors,
-    states: session.events.map(event => event.state === 'hit' ? 'h' : event.state === 'missed' ? 'm' : 'p').join(''),
+    waiting: session.waiting, errors: session.errors, pedal: session.pedalChallenge,
+    states: stateString(session.events), cueStates: stateString(session.cues),
     savedAt: new Date().toISOString()
   };
   try {
     if (currentProfile()) updateProfile({ checkpoint });
     else localStorage.setItem('beathoven-guest-checkpoint-v1', JSON.stringify(checkpoint));
   } catch { /* Quota or private mode: completed scores still have their own save. */ }
+}
+
+function stateString(items) {
+  return items.map(item => item.state === 'hit' ? 'h' : item.state === 'missed' ? 'm' : 'p').join('');
+}
+
+function restoreStates(items, states) {
+  items.forEach((item,index) => { item.state = states[index] === 'h' ? 'hit' : states[index] === 'm' ? 'missed' : 'pending'; });
 }
 
 function savedCheckpoint() {
@@ -127,19 +150,26 @@ function scoreKindLabel(song, loading = false) {
 }
 
 async function ensureScore(song) {
-  if (!song.midiUrl || song.events) return;
-  if (!song.loadPromise) song.loadPromise = fetch(song.midiUrl)
-    .then(response => { if (!response.ok) throw new Error('Score could not be loaded.'); return response.arrayBuffer(); })
-    .then(buffer => {
-      const adaptation = adaptMidiForLaptop(parseMidi(buffer));
-      song.events = adaptation.notes;
-      song.duration = adaptation.duration;
-      song.sourceNoteCount = adaptation.sourceNoteCount;
-      song.bpm = adaptation.bpm;
-      song.bpmRange = adaptation.bpmRange;
-    });
-  try { await song.loadPromise; }
-  catch (error) { song.loadPromise = null; throw error; }
+  if (song.midiUrl && !song.parsed) {
+    if (!song.loadPromise) song.loadPromise = fetch(song.midiUrl)
+      .then(response => { if (!response.ok) throw new Error('Score could not be loaded.'); return response.arrayBuffer(); })
+      .then(buffer => { song.parsed = parseMidi(buffer); });
+    try { await song.loadPromise; }
+    catch (error) { song.loadPromise = null; throw error; }
+  }
+  adaptSong(song);
+}
+
+// Scores fold into the current layout's range, so they are re-adapted when it changes.
+function adaptSong(song) {
+  if (!song.parsed || song.adaptedFor === layout) return;
+  const adaptation = adaptMidiForLaptop(song.parsed, layoutRange(layout).high);
+  song.events = adaptation.notes;
+  song.duration = adaptation.duration;
+  song.sourceNoteCount = adaptation.sourceNoteCount;
+  song.bpm = adaptation.bpm;
+  song.bpmRange = adaptation.bpmRange;
+  song.adaptedFor = layout;
 }
 
 function renderProfileLink() {
@@ -200,31 +230,34 @@ function renderLibrary() {
   }
 }
 
-function isWhite(midi) { return [0,2,4,5,7,9,11].includes(midi % 12); }
+const spokenKey = key => key === '↵' ? 'Enter' : key;
 
+// Only the keys of the chosen layout are drawn, so the piano has no unused keys.
 function renderKeyboard() {
   els.keyboard.replaceChildren();
-  const start = 48 + octave * 12;
-  for (let midi = start; midi <= start + 35; midi++) {
+  const { low, high } = layoutRange(layout);
+  const start = low + octave * 12, end = high + octave * 12;
+  els.stageCard.style.setProperty('--white-count', LAYOUTS[layout].keys.filter(key => isWhite(key.midi)).length);
+  for (let midi = start; midi <= end; midi++) {
     if (!isWhite(midi)) continue;
-    const key = keyForMidi(midi, octave);
+    const key = keyForMidi(midi, octave, layout);
     const element = document.createElement('button'); element.type = 'button';
-    element.className = `white-key${key ? ' mapped-key' : ''}`;
+    element.className = 'white-key mapped-key';
     element.dataset.midi = midi;
-    element.setAttribute('aria-label', `${midiName(midi)}${key ? `, keyboard ${key.toUpperCase()}` : ''}`);
+    element.setAttribute('aria-label', `${midiName(midi)}, keyboard ${spokenKey(key)}`);
     const name = document.createElement('span'); name.className = 'key-name'; name.textContent = midiName(midi);
-    const letter = document.createElement('span'); letter.className = 'key-letter'; letter.textContent = key?.toUpperCase() || '';
+    const letter = document.createElement('span'); letter.className = `key-letter${key.length > 1 ? ' long-label' : ''}`; letter.textContent = key;
     element.append(name,letter); attachPointer(element,midi); els.keyboard.append(element);
   }
-  for (let midi = start; midi <= start + 35; midi++) {
+  for (let midi = start; midi <= end; midi++) {
     if (isWhite(midi)) continue;
-    const key = keyForMidi(midi,octave);
+    const key = keyForMidi(midi,octave,layout);
     const element = document.createElement('button'); element.type = 'button';
-    element.className = `black-key${key ? ' mapped-key' : ''}`;
-    element.style.left = `${wideKeyPosition(midi,octave)}%`;
+    element.className = `black-key mapped-key${key.length > 1 ? ' long-label' : ''}`;
+    element.style.left = `${keyPosition(midi,octave,layout)}%`;
     element.dataset.midi = midi;
-    element.setAttribute('aria-label', `${midiName(midi)}${key ? `, keyboard ${key.toUpperCase()}` : ''}`);
-    element.textContent = key?.toUpperCase() || '';
+    element.setAttribute('aria-label', `${midiName(midi)}, keyboard ${spokenKey(key)}`);
+    element.textContent = key;
     attachPointer(element,midi); els.keyboard.append(element);
   }
   updateTargetKey();
@@ -232,7 +265,8 @@ function renderKeyboard() {
 
 function renderOctaveControls() {
   const lessonAtMiddleC = mode === 'learning' && selected.kind === 'lesson';
-  els.octave.textContent = `${midiName(60 + octave * 12)}–${midiName(74 + octave * 12)}`;
+  const { low, high } = layoutRange(layout);
+  els.octave.textContent = `${midiName(low + octave * 12)}–${midiName(high + octave * 12)}`;
   $('#octave-down').disabled = lessonAtMiddleC || octave === -2;
   $('#octave-up').disabled = lessonAtMiddleC || octave === 2;
   $('.octave-note').textContent = lessonAtMiddleC
@@ -256,16 +290,21 @@ function noteColor(midi) {
 }
 
 function renderNotes() {
-  els.notes.replaceChildren(); noteNodes.clear(); positionNotes();
+  els.notes.replaceChildren(); noteNodes.clear();
+  els.pedalCues.replaceChildren(); cueNodes.clear();
+  positionNotes();
+}
+
+function stageGeometry() {
+  const height = els.stage.clientHeight;
+  return { elapsed: session?.elapsed ?? -2.25, height, lineY: height - 26, pixelsPerSecond: Math.max(42,height * .16) };
 }
 
 function positionNotes() {
+  positionPedalCues();
   const events = session?.events ?? preview;
   if (!events.length) return;
-  const elapsed = session?.elapsed ?? -2.25;
-  const height = els.stage.clientHeight;
-  const lineY = height - 26;
-  const pixelsPerSecond = Math.max(42,height * .16);
+  const { elapsed, height, lineY, pixelsPerSecond } = stageGeometry();
   const target = session?.mode === 'learning' ? session.target : null;
   let low = 0, high = events.length;
   while (low < high) { const mid = (low + high) >> 1; if (events[mid].start < elapsed - 15) low = mid + 1; else high = mid; }
@@ -274,12 +313,15 @@ function positionNotes() {
     const event = events[i];
     if (event.start > elapsed + height / pixelsPerSecond + 4) break;
     if (event.midi === null) continue;
-    const position = wideKeyPosition(event.midi,octave);
+    const position = keyPosition(event.midi,octave,layout);
     if (position === null) continue;
     const barHeight = Math.max(10,event.duration * pixelsPerSecond);
     const bottom = lineY - (event.start - elapsed) * pixelsPerSecond;
     const top = bottom - barHeight;
     if (top > height + 5 || bottom < -5) continue;
+    // A held note is eaten by the hit line, so the bar shrinks as it is held.
+    const holding = event.holdState === 'holding';
+    const shownBottom = holding ? Math.min(bottom,lineY) : bottom;
     visible.add(event.index);
     let element = noteNodes.get(event.index);
     if (!element) {
@@ -291,13 +333,45 @@ function positionNotes() {
       els.notes.append(element); noteNodes.set(event.index,element);
     }
     element.style.top = `${top}px`;
-    element.style.height = `${barHeight}px`;
+    element.style.height = `${Math.max(0,shownBottom - top)}px`;
+    element.classList.toggle('hold', !!event.hold);
+    element.classList.toggle('holding', holding);
+    element.classList.toggle('hold-broken', event.holdState === 'broken');
     element.classList.toggle('hit', event.state === 'hit');
     element.classList.toggle('missed', event.state === 'missed');
     element.classList.toggle('target', target?.index === event.index && session.waiting !== null);
   }
   for (const [index,element] of noteNodes) {
     if (!visible.has(index)) { element.remove(); noteNodes.delete(index); }
+  }
+}
+
+function positionPedalCues() {
+  const cues = session?.cues ?? previewCues;
+  els.pedalLane.classList.toggle('down', pedalKeys.size > 0 && pedalActive());
+  if (!cues.length) return;
+  const { elapsed, height, lineY, pixelsPerSecond } = stageGeometry();
+  const visible = new Set();
+  for (const cue of cues) {
+    const bottom = lineY - (cue.start - elapsed) * pixelsPerSecond;
+    const top = bottom - cue.duration * pixelsPerSecond;
+    if (bottom < -5) break;
+    if (top > height + 5) continue;
+    visible.add(cue.index);
+    let element = cueNodes.get(cue.index);
+    if (!element) {
+      element = document.createElement('div'); element.className = 'pedal-cue';
+      els.pedalCues.append(element); cueNodes.set(cue.index,element);
+    }
+    const holding = cue.holdState === 'holding';
+    element.style.top = `${top}px`;
+    element.style.height = `${Math.max(0,(holding ? Math.min(bottom,lineY) : bottom) - top)}px`;
+    element.classList.toggle('holding', holding);
+    element.classList.toggle('hit', cue.state === 'hit');
+    element.classList.toggle('missed', cue.state === 'missed' || cue.holdState === 'broken');
+  }
+  for (const [index,element] of cueNodes) {
+    if (!visible.has(index)) { element.remove(); cueNodes.delete(index); }
   }
 }
 
@@ -329,7 +403,9 @@ function updateTargetKey() {
 function updateTip() {
   const tips = mode === 'learning'
     ? [selected.kind === 'lesson' ? selected.phase : 'Practice a slow song', selected.instruction || 'Learning mode waits for the correct note.']
-    : ['Play the whole piece','Free mode runs from the first note to the last. Long piano scores are adapted to a single-note laptop line.'];
+    : ['Play the whole piece', pedalActive()
+      ? 'Hold Shift as the sustain pedal while a yellow cue passes the line, then lift and press again for the next one.'
+      : 'Free mode runs from the first note to the last. Keep long bars held until they finish for full credit.'];
   els.tipTitle.textContent = tips[0]; els.tipCopy.textContent = tips[1];
 }
 
@@ -347,7 +423,7 @@ function renderLessonTimer() {
   }
   const target = session.target;
   if (!target) { els.lessonTimer.textContent = 'LAST NOTE DONE'; return; }
-  const key = keyForMidi(target.midi,octave)?.toUpperCase();
+  const key = keyForMidi(target.midi,octave,layout);
   const note = `${midiName(target.midi)}${key ? ` (${key})` : ''}`;
   if (selected.untimed || session.waiting !== null) {
     els.lessonTimer.textContent = `PLAY ${note}`;
@@ -361,15 +437,19 @@ function renderLessonTimer() {
 
 function resetSession() {
   audio.stopAll(); heldKeys.clear();
+  if (pedalActive() && pedalKeys.size) audio.setPedal(true);
   for (const element of els.keyboard.querySelectorAll('.pressed')) element.classList.remove('pressed');
   session = null; paused = false; resultSaved = false;
   preview = selected.events || selected.notes ? buildTimeline(selected,speed,octave,mode) : [];
+  previewCues = pedalActive() ? buildPedalCues(preview) : [];
   els.overlay.hidden = false;
   els.overlay.querySelector('strong').textContent = selected.kind === 'lesson' ? selected.title : 'Ready when you are.';
-  els.overlay.querySelector('span').textContent = selected.untimed ? 'Find the highlighted key. There is no timer.' : mode === 'learning' ? `Watch the beat at ${formatBpm(selected)}.` : 'Follow the notes down to your keys.';
+  els.overlay.querySelector('span').textContent = !preview.length ? 'Loading the score…'
+    : selected.untimed ? 'Find the highlighted key. There is no timer.'
+      : mode === 'learning' ? `Watch the beat at ${formatBpm(selected)}.`
+        : pedalActive() ? 'Follow the notes down to your keys. Hold Shift on the yellow pedal cues.' : 'Follow the notes down to your keys.';
   els.start.innerHTML = selected.kind === 'lesson' ? 'Start lesson <span>→</span>' : 'Start playing <span>→</span>';
   els.start.disabled = !preview.length;
-  els.status.textContent = preview.length ? 'READY TO PLAY' : 'LOADING SCORE';
   els.pause.disabled = true; els.pause.querySelector('span').textContent = 'Pause';
   renderNotes(); renderProgress(); updateTargetKey(); renderLessonTimer();
 }
@@ -403,7 +483,6 @@ async function selectSong(song,{allowShortFreeResume = false,preserveSpeed = fal
     renderTempo(); resetSession(); updateRank();
   } catch(error) {
     if (serial !== loadingSerial) return;
-    els.status.textContent = 'SCORE UNAVAILABLE';
     els.overlay.querySelector('strong').textContent = 'Could not load this score.';
     els.overlay.querySelector('span').textContent = error.message;
     showFeedback(error.message,true);
@@ -422,14 +501,14 @@ async function startSession() {
   if ($('#result-dialog').open) $('#result-dialog').close();
   if (session && paused) {
     paused = false; session.playing = true; els.overlay.hidden = true;
-    els.status.textContent = 'PLAYING'; els.pause.querySelector('span').textContent = 'Pause';
+    els.pause.querySelector('span').textContent = 'Pause';
     frameTime = performance.now(); return;
   }
   try { await ensureScore(selected); } catch(error) { showFeedback(error.message,true); return; }
-  session = new PracticeSession(selected,mode,speed,octave);
+  session = new PracticeSession(selected,mode,speed,octave,{ pedal: pedalActive() });
   session.elapsed = selected.untimed ? 0 : -Math.max(1.6, 3 * 60 / ((selected.bpm || 90) * speed));
   resultSaved = false; els.overlay.hidden = true; els.pause.disabled = false;
-  els.status.textContent = 'GET READY'; frameTime = performance.now();
+  frameTime = performance.now();
   renderNotes(); renderProgress(); updateTargetKey(); renderLessonTimer(); saveCheckpoint(true);
   audio.unlock().catch(() => {});
 }
@@ -441,8 +520,8 @@ function togglePause() {
     els.overlay.querySelector('strong').textContent = 'Take a breath.';
     els.overlay.querySelector('span').textContent = 'Resume when you are ready.';
     els.start.innerHTML = 'Resume playing <span>→</span>';
-    els.status.textContent = 'PAUSED'; saveCheckpoint(true);
-  } else { els.status.textContent = 'PLAYING'; frameTime = performance.now(); }
+    saveCheckpoint(true);
+  } else frameTime = performance.now();
   els.pause.querySelector('span').textContent = paused ? 'Resume' : 'Pause';
 }
 
@@ -451,7 +530,6 @@ function finishSession() {
   resultSaved = true; audio.stopAll();
   progress = addResult(progress,selected,mode,session.accuracy);
   saveProgressAndClearCheckpoint(); updateRank(); renderProgress();
-  els.status.textContent = 'COMPLETE';
   $('#result-heading').textContent = selected.kind === 'lesson' ? 'LESSON COMPLETE' : 'SONG COMPLETE';
   $('#result-title').textContent = session.accuracy >= 90 ? 'Beautifully played.' : session.accuracy >= 60 ? 'Nice progress.' : 'Keep practicing.';
   const difficulty = $('#result-difficulty');
@@ -459,7 +537,7 @@ function finishSession() {
   difficulty.setAttribute('aria-label', `${selected.difficulty}-star ${selected.kind === 'lesson' ? 'lesson' : 'song'} difficulty`);
   $('#result-accuracy').textContent = `${session.accuracy}%`;
   $('#result-detail').textContent = mode === 'free'
-    ? `${session.hits} of ${session.total} notes played on time · ${selected.title}`
+    ? `${session.hits} of ${session.total} notes played on time${session.cues.length ? ` · ${session.cueHits} of ${session.cues.length} pedal cues` : ''} · ${selected.title}`
     : `${session.total} ${session.total === 1 ? 'note' : 'notes'} ${selected.kind === 'lesson' ? 'learned' : 'practiced'} · ${session.errors} ${session.errors === 1 ? 'retry' : 'retries'} · ${session.accuracy >= MASTERY_ACCURACY ? 'Step mastered' : `${MASTERY_ACCURACY}% needed to master`}`;
   $('#result-retry').innerHTML = `${selected.kind === 'lesson' ? 'Practice again' : 'Play again'} <span>↺</span>`;
   $('#result-next').textContent = mode === 'learning'
@@ -480,10 +558,9 @@ function pressMidi(midi,source) {
     if (result === 'hit') showFeedback('Nice!');
     else if (result === 'wrong' && mode === 'learning') {
       const target = session.target;
-      const key = target ? keyForMidi(target.midi,octave) : null;
-      showFeedback(`Try ${target ? midiName(target.midi) : 'the highlighted note'}${key ? ` · ${key.toUpperCase()}` : ''}`,true);
+      const key = target ? keyForMidi(target.midi,octave,layout) : null;
+      showFeedback(`Try ${target ? midiName(target.midi) : 'the highlighted note'}${key ? ` · ${key}` : ''}`,true);
     }
-    els.status.textContent = session.waiting !== null ? 'PLAY THE HIGHLIGHTED KEY' : 'PLAYING';
     updateTargetKey(); renderProgress(); positionNotes(); renderLessonTimer(); saveCheckpoint();
     if (session.finished) finishSession();
   }
@@ -496,7 +573,46 @@ function releaseKey(source) {
   if (![...heldKeys.values()].includes(midi)) {
     audio.stop(midi);
     els.keyboard.querySelector(`[data-midi="${midi}"]`)?.classList.remove('pressed');
+    if (session && !session.finished && session.release(midi) === 'broken') showFeedback('Hold it longer',true);
   }
+}
+
+function setPedalKey(code,down) {
+  const wasDown = pedalKeys.size > 0;
+  if (down) pedalKeys.add(code); else pedalKeys.delete(code);
+  if (wasDown === pedalKeys.size > 0 || !pedalActive()) return;
+  audio.setPedal(!wasDown);
+  if (!session || paused || session.finished) return;
+  const result = session.pedal(!wasDown);
+  if (result === 'hit') showFeedback('Pedal!');
+  else if (result === 'broken') showFeedback('Keep the pedal down',true);
+  renderProgress(); saveCheckpoint();
+  if (session.finished) finishSession();
+}
+
+function renderPedalToggle() {
+  els.pedalToggle.classList.toggle('active',pedalChallenge);
+  els.pedalToggle.setAttribute('aria-pressed',String(pedalChallenge));
+  els.pedalToggle.disabled = mode !== 'free';
+  els.pedalToggle.title = mode !== 'free' ? 'The pedal challenge is part of Free mode'
+    : pedalChallenge ? 'Pedal challenge on: hold Shift on the yellow cues' : 'Pedal challenge: use Shift as a sustain pedal';
+  els.pedalLane.hidden = !pedalActive();
+}
+
+function togglePedalChallenge() {
+  pedalChallenge = !pedalChallenge;
+  saveSetting('beathoven-pedal-v1',pedalChallenge ? 'on' : 'off');
+  renderPedalToggle(); updateTip(); resetSession();
+  showFeedback(pedalChallenge ? 'Pedal challenge on · hold Shift on the yellow cues' : 'Pedal challenge off');
+}
+
+function changeLayout(value) {
+  if (!(value in LAYOUTS) || value === layout) return;
+  for (const source of [...heldKeys.keys()]) releaseKey(source);
+  layout = value;
+  saveSetting('beathoven-layout-v1',value);
+  for (const song of library()) adaptSong(song);
+  renderKeyboard(); renderOctaveControls(); renderTempo(); resetSession(); renderLibrary();
 }
 
 function changeOctave(delta) {
@@ -507,7 +623,10 @@ function changeOctave(delta) {
   for (const source of [...heldKeys.keys()]) releaseKey(source);
   octave = next;
   renderOctaveControls();
-  if (session) session.events.forEach(event => { if (event.midi !== null) event.midi += 12 * difference; });
+  if (session) {
+    session.events.forEach(event => { if (event.midi !== null) event.midi += 12 * difference; });
+    session.holding = new Map([...session.holding.values()].map(event => [event.midi,event]));
+  }
   preview = selected.events || selected.notes ? buildTimeline(selected,speed,octave,mode) : [];
   renderKeyboard(); renderNotes(); renderLessonTimer(); saveCheckpoint(true);
 }
@@ -516,9 +635,6 @@ function loop(now) {
   const delta = Math.min(.1,Math.max(0,(now - frameTime) / 1000)); frameTime = now;
   if (session && !paused && !session.finished) {
     session.advance(delta);
-    if (session.waiting !== null) els.status.textContent = 'PLAY THE HIGHLIGHTED KEY';
-    else if (session.elapsed >= 0) els.status.textContent = 'PLAYING';
-    else els.status.textContent = `GET READY · ${Math.ceil(-session.elapsed)}`;
     renderProgress(); updateTargetKey(); renderLessonTimer(); saveCheckpoint();
     if (session.finished) finishSession();
   }
@@ -530,10 +646,11 @@ async function importMidi(file) {
   if (file.size > 10 * 1024 * 1024) { showFeedback('Choose a MIDI file smaller than 10 MB.',true); return; }
   try {
     const bytes = await file.arrayBuffer();
-    const adapted = adaptMidiForLaptop(parseMidi(bytes));
+    const parsed = parseMidi(bytes);
+    const adapted = adaptMidiForLaptop(parsed,layoutRange(layout).high);
     const digest = new Uint8Array(await crypto.subtle.digest('SHA-256',bytes));
     const id = `import-${[...digest.slice(0,8)].map(x => x.toString(16).padStart(2,'0')).join('')}`;
-    const song = { id,title:file.name.replace(/\.(mid|midi)$/i,'').slice(0,80),composer:'Your MIDI · saved in this browser',difficulty:3,kind:'imported',events:adapted.notes,duration:adapted.duration,bpm:adapted.bpm,bpmRange:adapted.bpmRange };
+    const song = { id,title:file.name.replace(/\.(mid|midi)$/i,'').slice(0,80),composer:'Your MIDI · saved in this browser',difficulty:3,kind:'imported',events:adapted.notes,duration:adapted.duration,bpm:adapted.bpm,bpmRange:adapted.bpmRange,parsed,adaptedFor:layout };
     let saved = true;
     try { await savePersonalSong(song,bytes); }
     catch { saved = false; }
@@ -556,8 +673,9 @@ async function restorePersonalSongs() {
     for (const record of records) {
       try {
         if (imports.some(song => song.id === record.id)) continue;
-        const adapted = adaptMidiForLaptop(parseMidi(record.bytes));
-        imports.push({ id:record.id,title:record.title,composer:'Your MIDI · saved in this browser',difficulty:record.difficulty || 3,kind:'imported',events:adapted.notes,duration:adapted.duration,bpm:adapted.bpm,bpmRange:adapted.bpmRange,persisted:true });
+        const parsed = parseMidi(record.bytes);
+        const adapted = adaptMidiForLaptop(parsed,layoutRange(layout).high);
+        imports.push({ id:record.id,title:record.title,composer:'Your MIDI · saved in this browser',difficulty:record.difficulty || 3,kind:'imported',events:adapted.notes,duration:adapted.duration,bpm:adapted.bpm,bpmRange:adapted.bpmRange,parsed,adaptedFor:layout,persisted:true });
       } catch { /* A damaged personal file should not hide the rest. */ }
     }
     renderLibrary();
@@ -572,19 +690,21 @@ async function resumeCheckpoint() {
   mode = saved.mode === 'learning' ? 'learning' : 'free';
   speed = [0.5,0.75,1,1.25].includes(saved.speed) ? saved.speed : 1;
   octave = Math.max(-2,Math.min(2,Number(saved.octave) || 0));
+  if (mode === 'free') pedalChallenge = !!saved.pedal;
   $('#speed-select').value = String(speed);
   updateModeButtons();
   renderOctaveControls();
   renderKeyboard(); await selectSong(song,{allowShortFreeResume:true,preserveSpeed:true});
-  session = new PracticeSession(selected,mode,speed,octave);
+  session = new PracticeSession(selected,mode,speed,octave,{ pedal: pedalActive() });
   if (saved.states?.length !== session.events.length) { session=null; resetSession(); return; }
-  session.events.forEach((event,index) => { event.state = saved.states[index] === 'h' ? 'hit' : saved.states[index] === 'm' ? 'missed' : 'pending'; });
+  restoreStates(session.events,saved.states);
+  if (saved.cueStates?.length === session.cues.length) restoreStates(session.cues,saved.cueStates);
+  else session.cues.forEach(cue => { if (cue.start < saved.elapsed) cue.state = 'missed'; });
   session.elapsed = saved.elapsed;
   session.errors = saved.errors || 0;
   session.waiting = saved.waiting ?? null;
   resultSaved = false; paused = false;
   els.overlay.hidden = true; els.pause.disabled = false;
-  els.status.textContent = session.waiting !== null ? 'PLAY THE HIGHLIGHTED KEY' : 'PLAYING';
   frameTime = performance.now(); renderNotes(); renderProgress(); updateTargetKey(); renderLessonTimer();
 }
 
@@ -596,7 +716,7 @@ function updateModeButtons() {
   els.mode.textContent = mode === 'free' ? 'Free mode' : 'Learning mode'; updateTip();
   $('#library-intro').textContent = mode === 'free' ? 'Bundled pieces run at least one minute; your imports can vary.' : 'Start with single notes, then timed practice and slow songs.';
   els.kind.textContent = scoreKindLabel(selected,!selected.events);
-  renderLessonBanner(); renderTempo(); renderLessonTimer();
+  renderLessonBanner(); renderTempo(); renderLessonTimer(); renderPedalToggle();
 }
 
 function setMode(value) {
@@ -613,15 +733,24 @@ document.addEventListener('keydown',event => {
   const tag = event.target?.tagName;
   if (['INPUT','TEXTAREA','SELECT'].includes(tag) || event.target?.isContentEditable) return;
   if (document.querySelector('dialog[open]')) return;
+  if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') { setPedalKey(event.code,true); return; }
+  // Enter still activates a focused button or link.
+  if (event.code === 'Enter' && event.target?.closest?.('button,a')) return;
   const key = event.key.toLowerCase();
-  const midi = keyboardMidi(key,octave);
-  if (midi !== null) { event.preventDefault(); pressMidi(midi,`keyboard-${key}`); }
+  const midi = keyboardMidi(event.code,octave,layout);
+  if (midi !== null) { event.preventDefault(); pressMidi(midi,`keyboard-${event.code}`); }
   else if (key === ' ') { event.preventDefault(); if (!session || session.finished || paused) startSession(); else togglePause(); }
   else if (key === 'arrowup') { event.preventDefault(); changeOctave(1); }
   else if (key === 'arrowdown') { event.preventDefault(); changeOctave(-1); }
 });
-document.addEventListener('keyup',event => releaseKey(`keyboard-${event.key.toLowerCase()}`));
-window.addEventListener('blur',() => { for (const source of [...heldKeys.keys()]) releaseKey(source); });
+document.addEventListener('keyup',event => {
+  if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') setPedalKey(event.code,false);
+  else releaseKey(`keyboard-${event.code}`);
+});
+window.addEventListener('blur',() => {
+  for (const source of [...heldKeys.keys()]) releaseKey(source);
+  for (const code of [...pedalKeys]) setPedalKey(code,false);
+});
 window.addEventListener('pagehide',() => saveCheckpoint(true));
 els.search.addEventListener('input',renderLibrary);
 els.start.addEventListener('click',startSession);
@@ -631,7 +760,9 @@ $('#previous-song').addEventListener('click',() => changeSong(-1));
 $('#next-song').addEventListener('click',() => changeSong(1));
 $('#free-mode').addEventListener('click',() => setMode('free'));
 $('#learning-mode').addEventListener('click',() => setMode('learning'));
-$('#speed-select').addEventListener('change',event => { speed=Number(event.target.value); renderTempo(); resetSession(); });
+$('#speed-select').addEventListener('change',event => { speed=Number(event.target.value); renderTempo(); resetSession(); event.target.blur(); });
+els.layoutSelect.addEventListener('change',event => { changeLayout(event.target.value); event.target.blur(); });
+els.pedalToggle.addEventListener('click',togglePedalChallenge);
 $('#sound-button').addEventListener('click',() => { audio.enabled=!audio.enabled; if (!audio.enabled) audio.stopAll(); $('#sound-button').textContent=audio.enabled?'♪':'♩'; $('#sound-button').setAttribute('aria-label',audio.enabled?'Mute sound':'Unmute sound'); });
 $('#octave-down').addEventListener('click',() => changeOctave(-1));
 $('#octave-up').addEventListener('click',() => changeOctave(1));
@@ -659,6 +790,7 @@ $('#result-dialog').addEventListener('cancel',event => { event.preventDefault();
 $('#import-midi').addEventListener('click',() => $('#midi-file').click());
 $('#midi-file').addEventListener('change',event => { importMidi(event.target.files[0]); event.target.value=''; });
 
+els.layoutSelect.value = layout;
 renderProfileLink(); renderFilters(); renderKeyboard(); renderOctaveControls(); updateModeButtons();
 selectSong(selected).then(async () => {
   await restorePersonalSongs();

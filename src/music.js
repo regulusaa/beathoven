@@ -1,9 +1,31 @@
-export const WHITE_KEYS = ['a','s','d','f','g','h','j','k','l'];
-export const BLACK_KEYS = ['w','e','t','y','u','o','p'];
-export const WHITE_MIDI = [60,62,64,65,67,69,71,72,74];
-export const BLACK_MIDI = [61,63,66,68,70,73,75];
-export const BLACK_AFTER_WHITE = [0,1,3,4,5,7,8];
+// Each layout follows the physical keys (KeyboardEvent.code), so it works with
+// any language setting. Home-row keys are white piano keys; the row above holds
+// the black keys between them. Every layout covers each semitone from C4 up.
+const MAIN_BLOCK = [
+  ['KeyA','A'],['KeyW','W'],['KeyS','S'],['KeyE','E'],['KeyD','D'],['KeyF','F'],['KeyT','T'],
+  ['KeyG','G'],['KeyY','Y'],['KeyH','H'],['KeyU','U'],['KeyJ','J'],['KeyK','K'],['KeyO','O'],
+  ['KeyL','L'],['KeyP','P'],['Semicolon',';'],['Quote',"'"],['BracketRight',']'],['Enter','↵']
+];
+const buildLayout = (id,name,keys) => ({ id, name, keys: keys.map(([code,label],index) => ({ code, label, midi: 60 + index })) });
+export const LAYOUTS = {
+  60: buildLayout('60','60% · laptop',MAIN_BLOCK),
+  75: buildLayout('75','75%',[...MAIN_BLOCK,['Backslash','\\'],['PageUp','PgUp']]),
+  100: buildLayout('100','100%',[
+    ...MAIN_BLOCK,['Backslash','\\'],['Delete','Del'],['Home','Home'],['End','End'],['PageDown','PgDn'],
+    ['NumLock','Num'],['Numpad7','7'],['NumpadDivide','/'],['Numpad8','8'],['Numpad9','9'],
+    ['NumpadSubtract','−'],['NumpadAdd','+']
+  ])
+};
+export const DEFAULT_LAYOUT = '60';
 const NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const layoutOf = id => LAYOUTS[id] || LAYOUTS[DEFAULT_LAYOUT];
+
+export function isWhite(midi) { return [0,2,4,5,7,9,11].includes(midi % 12); }
+
+export function layoutRange(layout = DEFAULT_LAYOUT) {
+  const keys = layoutOf(layout).keys;
+  return { low: keys[0].midi, high: keys.at(-1).midi };
+}
 
 export function midiName(midi) {
   return `${NAMES[midi % 12]}${Math.floor(midi / 12) - 1}`;
@@ -17,43 +39,23 @@ export function nameMidi(name) {
   return (Number(match[2]) + 1) * 12 + index;
 }
 
-export function keyboardMidi(key, octave = 0) {
-  const lower = key.toLowerCase();
-  const white = WHITE_KEYS.indexOf(lower);
-  if (white >= 0) return WHITE_MIDI[white] + octave * 12;
-  const black = BLACK_KEYS.indexOf(lower);
-  if (black >= 0) return BLACK_MIDI[black] + octave * 12;
-  return null;
+export function keyboardMidi(code, octave = 0, layout = DEFAULT_LAYOUT) {
+  const key = layoutOf(layout).keys.find(item => item.code === code);
+  return key ? key.midi + octave * 12 : null;
 }
 
-export function keyForMidi(midi, octave = 0) {
-  const base = midi - octave * 12;
-  const white = WHITE_MIDI.indexOf(base);
-  if (white >= 0) return WHITE_KEYS[white];
-  const black = BLACK_MIDI.indexOf(base);
-  return black >= 0 ? BLACK_KEYS[black] : null;
+export function keyForMidi(midi, octave = 0, layout = DEFAULT_LAYOUT) {
+  return layoutOf(layout).keys.find(item => item.midi === midi - octave * 12)?.label ?? null;
 }
 
-export function keyPosition(midi, octave = 0) {
+// Percent across the on-screen piano, which shows only the layout's keys.
+export function keyPosition(midi, octave = 0, layout = DEFAULT_LAYOUT) {
   const base = midi - octave * 12;
-  const white = WHITE_MIDI.indexOf(base);
-  if (white >= 0) return ((white + .5) / WHITE_KEYS.length) * 100;
-  const black = BLACK_MIDI.indexOf(base);
-  if (black >= 0) return ((BLACK_AFTER_WHITE[black] + 1) / WHITE_KEYS.length) * 100;
-  return null;
-}
-
-// Three octaves of correctly spaced piano keys, centered on the laptop map.
-export function wideKeyPosition(midi, octave = 0) {
-  const base = midi - octave * 12;
-  if (base < 48 || base > 83) return null; // C3 through B5
-  const whiteClasses = [0,2,4,5,7,9,11];
-  const octaveIndex = Math.floor((base - 48) / 12);
-  const pitchClass = base % 12;
-  const whiteWithinOctave = whiteClasses.indexOf(pitchClass);
-  if (whiteWithinOctave >= 0) return (octaveIndex * 7 + whiteWithinOctave + .5) / 21 * 100;
-  const precedingWhites = whiteClasses.filter(value => value < pitchClass).length;
-  return (octaveIndex * 7 + precedingWhites) / 21 * 100;
+  const { low, high } = layoutRange(layout);
+  if (base < low || base > high) return null;
+  let whites = 0, total = 0;
+  for (let note = low; note <= high; note++) if (isWhite(note)) { total++; if (note < base) whites++; }
+  return (isWhite(base) ? whites + .5 : whites) / total * 100;
 }
 
 export function frequency(midi) {
